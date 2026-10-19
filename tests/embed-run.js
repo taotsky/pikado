@@ -10,11 +10,12 @@ const frames = [];
 let sequence = 0;
 const namespace = 'vbd:pikado';
 const version = 1;
-const runId = crypto.randomUUID();
-const testFrame = document.createElement('iframe');
+const params = new URLSearchParams(location.search);
+const testCase = params.get('case') || 'smoke';
+const runId = params.get('run') || crypto.randomUUID();
 
 function frame(projectId = runId, userId = runId, expectedCommit = 'development') {
-  const iframe = testFrame;
+  const iframe = document.createElement('iframe');
   iframe.width = '1280'; iframe.height = '860';
   iframe.loading = 'eager';
   iframe.style.cssText = 'position:fixed;left:0;top:0';
@@ -47,14 +48,13 @@ function frame(projectId = runId, userId = runId, expectedCommit = 'development'
     pending.set(id, { resolve: (v) => { clearTimeout(timer); resolve(v); }, reject: (e) => { clearTimeout(timer); reject(e); } });
     send(type, payload, id);
   });
-  const remove = () => { clearTimeout(readyTimer); window.removeEventListener('message', listener); };
+  const remove = () => { clearTimeout(readyTimer); iframe.remove(); window.removeEventListener('message', listener); };
   const result = { iframe, ready, call, remove, received };
   frames.push(result);
   return result;
 }
 
-async function run() {
-try {
+async function smoke() {
   const first = frame();
   const ready = await first.ready;
   assert(ready.buildCommit === 'development', 'ready identifies actual dev build');
@@ -106,32 +106,51 @@ try {
   layerCanvas.toBlob = originalToBlob;
   await first.call('flush');
   await first.call('dispose'); first.remove();
-  const isolated = frame(`${runId}-other`);
-  await isolated.ready;
-  assert((await isolated.call('get-targets')).documents.length === 0, 'other project cannot recover first project');
-  await isolated.call('dispose'); isolated.remove();
-  const user = frame(runId, `${runId}-other-user`);
-  await user.ready;
-  assert((await user.call('get-targets')).documents.length === 0, 'other user cannot recover first user');
-  await user.call('dispose'); user.remove();
-  const restored = frame();
-  await restored.ready;
-  const targets = await restored.call('get-targets');
-  assert(targets.documents.length === 1 && targets.documents[0].layers.length === 2, 'ready waits for persisted documents to restore');
-  // Read the embedded window's live registry, rather than the parent's module instance.
-  const ai = await restored.iframe.contentWindow.eval(`import(${JSON.stringify(new URL('../src/commands/registry.js', location.href).href)})`);
-  assert(!ai.getCommand('edit.generative-fill') && !ai.getCommand('edit.ai-settings'), 'AI commands are unavailable in embedded registry');
-  await restored.call('dispose'); restored.remove();
-  const mismatch = frame(runId, runId, '0'.repeat(40));
-  try { await mismatch.ready; assert(false, 'wrong build must reject'); } catch (error) { assert(error.code === 'VERSION_MISMATCH', 'wrong build commit rejected'); }
-  mismatch.remove();
-} catch (error) {
-  report.push({ name: error.message || String(error), pass: false, stack: error.stack, frames: frames.map((f) => ({ src: f.iframe.src, href: f.iframe.contentWindow?.location.href, html: f.iframe.contentDocument?.documentElement?.outerHTML.slice(0, 400), received: f.received })) });
-} finally {
-  for (const f of frames) f.remove();
-  testFrame.remove();
-  document.getElementById('report').textContent = JSON.stringify(report, null, 2);
-  window.__pikadoEmbedTestsDone = true;
+  const links = document.createElement('p');
+  for (const name of ['restore', 'other-project', 'other-user', 'version']) {
+    const link = document.createElement('a');
+    const url = new URL(location.href);
+    url.searchParams.set('case', name);
+    url.searchParams.set('run', runId);
+    link.href = url.href;
+    link.textContent = name;
+    links.append(link, document.createTextNode(' '));
+  }
+  document.body.appendChild(links);
 }
+
+async function run() {
+  try {
+    if (testCase === 'smoke') await smoke();
+    else {
+      if (!params.get('run')) throw new Error('Run smoke first and follow its case links');
+      if (!['restore', 'other-project', 'other-user', 'version'].includes(testCase)) throw new Error('Unknown test case');
+      const current = frame(
+        testCase === 'other-project' ? `${runId}-other` : runId,
+        testCase === 'other-user' ? `${runId}-other-user` : runId,
+        testCase === 'version' ? '0'.repeat(40) : 'development',
+      );
+      if (testCase === 'version') {
+        try { await current.ready; assert(false, 'wrong build must reject'); }
+        catch (error) { assert(error.code === 'VERSION_MISMATCH', 'wrong build commit rejected'); }
+      } else {
+        await current.ready;
+        const targets = await current.call('get-targets');
+        if (testCase === 'restore') {
+          assert(targets.documents.length === 1 && targets.documents[0].layers.length === 2, 'ready waits for persisted documents to restore');
+          // Read the embedded window's live registry, rather than the parent's module instance.
+          const ai = await current.iframe.contentWindow.eval(`import(${JSON.stringify(new URL('../src/commands/registry.js', location.href).href)})`);
+          assert(!ai.getCommand('edit.generative-fill') && !ai.getCommand('edit.ai-settings'), 'AI commands are unavailable in embedded registry');
+        } else assert(targets.documents.length === 0, `${testCase} cannot recover the smoke project`);
+        await current.call('dispose');
+      }
+    }
+  } catch (error) {
+    report.push({ name: error.message || String(error), pass: false, stack: error.stack, frames: frames.map((f) => ({ src: f.iframe.src, received: f.received })) });
+  } finally {
+    for (const f of frames) f.remove();
+    document.getElementById('report').textContent = JSON.stringify(report, null, 2);
+    window.__pikadoEmbedTestsDone = true;
+  }
 }
 run();

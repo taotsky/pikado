@@ -49,6 +49,20 @@ contains `{ repository, commit, protocolVersion: 1 }`, and dist includes LICENSE
 Only build a clean, committed checkout for deployment.
 
 Open `/tools/pikado/tests/embed.html` for the real iframe integration checks.
+The default `case=smoke` creates a random test-only user/project namespace and
+runs insertion, download, autosave, lock and failed-save recovery checks. After
+success, use its `restore`, `other-project`, `other-user` and `version` links.
+Each link opens one independent case with the same `run` identifier, and every
+page creates just one iframe. Keep the origin unchanged between cases. The run
+identifier is a disposable test namespace, not a credential; no real account is
+used. Cases can also be opened as `?case=restore&run=<smoke-run-id>`. A missing
+seed or unexpected successful version handshake is reported as a failure.
+
+Verified on 2026-10-19 in desktop Chrome on Windows using a root-base Vite
+server: smoke 14/14, restore 2/2, other-project 1/1, other-user 1/1 and version
+1/1 passed (19 assertions total). The cases used one shared random run ID and
+separate top-level pages, each with one iframe. Smoke included real `.pkd`
+serialization/reopening and an injected encoding failure followed by recovery.
 The existing full suite and new transaction tests run at `/tests/` with Vite's
 default root base: some upstream fixtures use absolute `/tests/` and `/src/`
 URLs, so start a separate root-base server for that suite. Reports are exposed as
