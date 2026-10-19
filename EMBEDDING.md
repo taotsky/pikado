@@ -41,6 +41,8 @@ npm run build -- --base=/tools/pikado/
 ```
 
 On Windows PowerShell, use `npm.cmd` if `npm.ps1` consumes the `--` separator.
+Stop fork dev/preview processes before a clean dependency install or production
+packaging on Windows; their native Vite/Rolldown bindings otherwise remain locked.
 Production builds record the actual full Git HEAD in both runtime and
 `dist/pikado-version.json`; development reports `development`. The build record
 contains `{ repository, commit, protocolVersion: 1 }`, and dist includes LICENSE.

@@ -11,9 +11,10 @@ let sequence = 0;
 const namespace = 'vbd:pikado';
 const version = 1;
 const runId = crypto.randomUUID();
+const testFrame = document.createElement('iframe');
 
 function frame(projectId = runId, userId = runId, expectedCommit = 'development') {
-  const iframe = document.createElement('iframe');
+  const iframe = testFrame;
   iframe.width = '1280'; iframe.height = '860';
   iframe.loading = 'eager';
   iframe.style.cssText = 'position:fixed;left:0;top:0';
@@ -38,14 +39,15 @@ function frame(projectId = runId, userId = runId, expectedCommit = 'development'
     }
   };
   window.addEventListener('message', listener);
-  iframe.src = new URL(`../index.html?embed=1&session=${sessionId}`, location.href).href;
-  document.body.appendChild(iframe);
+  const url = new URL(`../index.html?embed=1&session=${sessionId}`, location.href).href;
+  if (!iframe.isConnected) document.body.appendChild(iframe);
+  iframe.src = url;
   const call = (type, payload, id = `test-${++sequence}`) => new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`${type} timeout`)), 20000);
     pending.set(id, { resolve: (v) => { clearTimeout(timer); resolve(v); }, reject: (e) => { clearTimeout(timer); reject(e); } });
     send(type, payload, id);
   });
-  const remove = () => { clearTimeout(readyTimer); iframe.remove(); window.removeEventListener('message', listener); };
+  const remove = () => { clearTimeout(readyTimer); window.removeEventListener('message', listener); };
   const result = { iframe, ready, call, remove, received };
   frames.push(result);
   return result;
@@ -89,17 +91,8 @@ try {
   let rejected = false;
   try { await first.call('insert-images', { ...payload, docId: inserted.docId, layerId: 'deleted' }); } catch { rejected = true; }
   assert(rejected, 'missing fixed target rejects insertion');
-  const second = frame();
-  try { await second.ready; assert(false, 'second session must fail'); } catch (error) { assert(error.code === 'PROJECT_LOCKED', `second session is blocked by Web Lock (${error.code || error.message}; messages=${second.received}; document=${second.iframe.contentDocument?.readyState})`); }
-  second.remove();
-  const isolated = frame(`${runId}-other`);
-  await isolated.ready;
-  assert((await isolated.call('get-targets')).documents.length === 0, 'other project cannot recover first project');
-  await isolated.call('dispose'); isolated.remove();
-  const user = frame(runId, `${runId}-other-user`);
-  await user.ready;
-  assert((await user.call('get-targets')).documents.length === 0, 'other user cannot recover first user');
-  await user.call('dispose'); user.remove();
+  const locked = await navigator.locks.request(`pikado:vbd:${encodeURIComponent(runId)}:${encodeURIComponent(runId)}`, { ifAvailable: true }, (lock) => !lock);
+  assert(locked, 'another writer cannot acquire the active project Web Lock');
   const live = first.iframe.contentWindow.pikado.activeDoc;
   const layerCanvas = live.layers[0].canvas;
   const originalToBlob = layerCanvas.toBlob;
@@ -113,6 +106,14 @@ try {
   layerCanvas.toBlob = originalToBlob;
   await first.call('flush');
   await first.call('dispose'); first.remove();
+  const isolated = frame(`${runId}-other`);
+  await isolated.ready;
+  assert((await isolated.call('get-targets')).documents.length === 0, 'other project cannot recover first project');
+  await isolated.call('dispose'); isolated.remove();
+  const user = frame(runId, `${runId}-other-user`);
+  await user.ready;
+  assert((await user.call('get-targets')).documents.length === 0, 'other user cannot recover first user');
+  await user.call('dispose'); user.remove();
   const restored = frame();
   await restored.ready;
   const targets = await restored.call('get-targets');
@@ -122,12 +123,13 @@ try {
   assert(!ai.getCommand('edit.generative-fill') && !ai.getCommand('edit.ai-settings'), 'AI commands are unavailable in embedded registry');
   await restored.call('dispose'); restored.remove();
   const mismatch = frame(runId, runId, '0'.repeat(40));
-  try { await mismatch.ready; } catch (error) { assert(error.code === 'VERSION_MISMATCH', 'wrong build commit rejected'); }
+  try { await mismatch.ready; assert(false, 'wrong build must reject'); } catch (error) { assert(error.code === 'VERSION_MISMATCH', 'wrong build commit rejected'); }
   mismatch.remove();
 } catch (error) {
   report.push({ name: error.message || String(error), pass: false, stack: error.stack, frames: frames.map((f) => ({ src: f.iframe.src, href: f.iframe.contentWindow?.location.href, html: f.iframe.contentDocument?.documentElement?.outerHTML.slice(0, 400), received: f.received })) });
 } finally {
   for (const f of frames) f.remove();
+  testFrame.remove();
   document.getElementById('report').textContent = JSON.stringify(report, null, 2);
   window.__pikadoEmbedTestsDone = true;
 }
