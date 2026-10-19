@@ -3,6 +3,7 @@ import './generative-fill.css';
 import { el } from '../../core/util.js';
 import { Dialog } from '../dialog.js';
 import { app } from '../../core/app.js';
+import { embedded } from '../../embed/mode.js';
 import { runGenerativeFill } from '../../ai/generative-fill.js';
 import { getProvider, listProviders, providerOptions, effortChoices } from '../../ai/providers/index.js';
 import { getModel, getEffort, setEffort } from '../../ai/model-prefs.js';
@@ -33,6 +34,7 @@ let lastPrompt = '';
 let lastProviderId = '';
 
 export async function showGenerativeFillDialog(doc = app.activeDoc) {
+  if (embedded) return;
   if (!doc) return false;
   const bounds = doc.selection.bounds();
   if (!doc.selection.mask || !bounds || !bounds.width) {

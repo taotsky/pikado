@@ -21,7 +21,7 @@
  * that answer must not cost a read of several megabytes of woff2.
  */
 
-const DB_NAME = 'pikado';
+let DB_NAME = 'pikado';
 const DB_VERSION = 2;
 
 /** Stop growing the store past this; the least recently touched go first. */
@@ -30,6 +30,20 @@ export const STORE_LIMIT_BYTES = 1_200 * 1024 * 1024;
 export const DOC_LIMIT_BYTES = 320 * 1024 * 1024;
 
 let dbPromise = null;
+
+export function configureStore(name) {
+  if (dbPromise) throw new Error('Storage has already opened');
+  DB_NAME = name;
+}
+
+export async function closeStore() {
+  if (dbPromise) (await dbPromise).close();
+  dbPromise = null;
+}
+
+export async function verifyStore() {
+  await openDB();
+}
 
 /**
  * Last timestamp handed out, so `updatedAt` is strictly increasing.
@@ -131,7 +145,7 @@ async function getOne(storeName, key) {
  * @param {{id:string, name:string, width:number, height:number, data:Blob, thumb?:Blob}} rec
  * @returns {Promise<{id:string, bytes:number}>}
  */
-export async function putDoc(rec) {
+export async function putDoc(rec, { keepIds = [] } = {}) {
   if (!rec || !rec.id || !(rec.data instanceof Blob)) throw new Error('putDoc needs an id and a data blob');
   if (rec.data.size > DOC_LIMIT_BYTES) {
     const err = new Error(`Project is too large to keep locally (${(rec.data.size / 1048576).toFixed(0)} MB)`);
@@ -152,7 +166,7 @@ export async function putDoc(rec) {
     tx.objectStore('docmeta').put(meta);
     tx.objectStore('docdata').put({ id: rec.id, data: rec.data });
   });
-  await prune();
+  await prune(keepIds);
   return { id: rec.id, bytes: meta.bytes };
 }
 

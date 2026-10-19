@@ -1,4 +1,5 @@
 import { app } from '../core/app.js';
+import { embedded } from '../embed/mode.js';
 import { Layer, LayerType } from '../core/layer.js';
 import { createCanvas, ctx2d } from '../core/util.js';
 import { getComposite } from '../render/compositor.js';
@@ -90,6 +91,7 @@ export function applyGeneratedFill(doc, patch, coverage, opts) {
  * @returns {Promise<Layer>}
  */
 export async function runGenerativeFill(doc, opts) {
+  if (embedded) throw new Error('请使用 VBD 的图片生成入口');
   const { provider, prompt, signal } = opts;
   if (!provider) throw new GenerationError(GEN_ERRORS.UNKNOWN, 'no provider selected');
   if (provider.needsKey && !hasCredential(provider.id)) {

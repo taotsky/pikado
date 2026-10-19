@@ -5,7 +5,7 @@ import { getComposite } from '../render/compositor.js';
 import { savePKD, loadPKD } from './pkd.js';
 import {
   putDoc, getDocData, listDocs, deleteDoc, kvSet, kvGet,
-  storageAvailable, requestPersistence, prune, usage, DOC_LIMIT_BYTES,
+  storageAvailable, requestPersistence, usage, DOC_LIMIT_BYTES,
 } from './store.js';
 
 /**
@@ -48,6 +48,18 @@ const state = {
 
 /** @type {Map<string, {timer:any, lastSaveAt:number, signature:string, pending:boolean}>} */
 const tracked = new Map();
+const revisions = new WeakMap();
+let saveQueue = Promise.resolve();
+let uninstall = [];
+
+export async function stopSession() {
+  state.enabled = false;
+  for (const off of uninstall.splice(0)) off();
+  for (const entry of tracked.values()) clearTimeout(entry.timer);
+  await saveQueue;
+  state.error = null;
+  tracked.clear();
+}
 
 export function sessionState() {
   return { ...state };
@@ -75,7 +87,7 @@ function storeIdOf(doc) {
  */
 function signatureOf(doc) {
   const h = doc.history;
-  return `${h ? h.index : 0}.${h ? h.states.length : 0}|${doc.width}x${doc.height}|${doc.name}|${doc.layers.length}`;
+  return `${revisions.get(doc) || 0}|${h ? h.index : 0}.${h ? h.states.length : 0}|${doc.width}x${doc.height}|${doc.name}|${doc.layers.length}`;
 }
 
 /** A small PNG of the composite, for the welcome screen's recent list. */
@@ -104,7 +116,13 @@ async function makeThumb(doc) {
  * @param {import('../core/document.js').PikaDocument} doc
  * @param {{force?:boolean}} [opts] force skips the "nothing changed" check
  */
-export async function saveDocNow(doc, opts = {}) {
+export function saveDocNow(doc, opts = {}) {
+  const task = saveQueue.then(() => saveDocument(doc, opts));
+  saveQueue = task.catch(() => {});
+  return task;
+}
+
+async function saveDocument(doc, opts = {}) {
   if (!state.enabled || !doc || state.restoring) return false;
   const id = storeIdOf(doc);
   const entry = tracked.get(id) || { timer: null, lastSaveAt: 0, signature: '', pending: false };
@@ -112,12 +130,6 @@ export async function saveDocNow(doc, opts = {}) {
 
   const sig = signatureOf(doc);
   if (!opts.force && sig === entry.signature) return false;
-
-  // One save at a time: encoding two large documents at once just thrashes.
-  if (state.saving) {
-    entry.pending = true;
-    return false;
-  }
 
   state.saving = true;
   state.error = null;
@@ -137,11 +149,11 @@ export async function saveDocNow(doc, opts = {}) {
       layers: doc.flatLayers().length,
       data,
       thumb,
-    });
+    }, { keepIds: app.docs.map(storeIdOf) });
     entry.signature = sig;
     entry.lastSaveAt = Date.now();
     state.lastSavedAt = entry.lastSaveAt;
-    await writeSessionPointer();
+    if (!await writeSessionPointer()) throw new Error('无法保存本地工程会话');
     return true;
   } catch (err) {
     state.error = (err && err.message) || String(err);
@@ -150,17 +162,13 @@ export async function saveDocNow(doc, opts = {}) {
   } finally {
     state.saving = false;
     emit();
-    if (entry.pending) {
-      entry.pending = false;
-      // Something changed while we were encoding — go round again, debounced.
-      schedule(doc);
-    }
   }
 }
 
 /** Debounced autosave for one document. */
 function schedule(doc) {
   if (!state.enabled || state.restoring || !doc) return;
+  revisions.set(doc, (revisions.get(doc) || 0) + 1);
   const id = storeIdOf(doc);
   const entry = tracked.get(id) || { timer: null, lastSaveAt: 0, signature: '', pending: false };
   tracked.set(id, entry);
@@ -175,25 +183,50 @@ function schedule(doc) {
 }
 
 /** Save every open document that has changed. Used when the tab goes away. */
-export async function flushAll() {
-  if (!state.enabled) return;
+export async function flushAll({ strict = false } = {}) {
+  if (!state.enabled) {
+    if (strict) throw new Error('本地存储不可用，请下载工程备份');
+    return;
+  }
+  await saveQueue;
+  state.error = null;
   for (const doc of [...app.docs]) {
     const entry = tracked.get(storeIdOf(doc));
     if (entry && entry.timer) { clearTimeout(entry.timer); entry.timer = null; }
     // Sequential on purpose: concurrent encodes of several large documents is
     // the one thing guaranteed not to finish before the tab dies.
-    await saveDocNow(doc);
+    do {
+      await saveDocNow(doc);
+      if (state.error) {
+        if (strict) throw new Error(state.error);
+        return;
+      }
+    } while (state.enabled && app.docs.includes(doc) && tracked.get(storeIdOf(doc))?.signature !== signatureOf(doc));
   }
+  if (!await writeSessionPointer()) {
+    state.error = '无法保存本地工程会话';
+    emit();
+    if (strict) throw new Error(state.error);
+  }
+  emit();
 }
 
 async function writeSessionPointer() {
-  const open = app.docs.map((d) => ({
+  if (!state.enabled || state.restoring) return true;
+  // Never persist a pointer to a new document before its payload exists.
+  const persisted = app.docs.filter((d) => tracked.get(storeIdOf(d))?.signature);
+  const open = persisted.map((d) => ({
     id: storeIdOf(d),
     name: d.name,
     view: d === app.activeDoc ? app.viewport.serialize() : (app._views.get(d.id) || null),
   }));
-  const activeId = app.activeDoc ? storeIdOf(app.activeDoc) : null;
-  await kvSet(SESSION_KEY, { open, activeId, savedAt: Date.now() });
+  const activeId = persisted.includes(app.activeDoc) ? storeIdOf(app.activeDoc) : null;
+  const saved = await kvSet(SESSION_KEY, { open, activeId, savedAt: Date.now() });
+  if (!saved) {
+    state.error = '无法保存本地工程会话';
+    emit();
+  }
+  return saved;
 }
 
 /* ------------------------------------------------------------------ */
@@ -204,7 +237,7 @@ async function writeSessionPointer() {
  * Reopen whatever was open last time.
  * @returns {Promise<number>} how many documents came back
  */
-export async function restoreSession() {
+export async function restoreSession({ strict = false } = {}) {
   if (!storageAvailable()) return 0;
   const sess = await kvGet(SESSION_KEY);
   if (!sess || !Array.isArray(sess.open) || !sess.open.length) return 0;
@@ -216,7 +249,10 @@ export async function restoreSession() {
     for (const ref of sess.open) {
       try {
         const blob = await getDocData(ref.id);
-        if (!blob) continue;
+        if (!blob) {
+          if (strict) throw new Error('本地工程数据缺失，请从备份恢复');
+          continue;
+        }
         const doc = await loadPKD(await blob.arrayBuffer());
         doc._storeId = ref.id;
         if (ref.name) doc.name = ref.name;
@@ -249,6 +285,7 @@ export async function restoreSession() {
   if (firstFailure && !restored) {
     app.toast('Your previous session could not be restored.', 'warn', 5000);
   }
+  if (firstFailure && strict) throw firstFailure;
   return restored;
 }
 
@@ -275,7 +312,7 @@ export async function openRecent(id) {
     app.addDocument(doc);
     tracked.set(id, { timer: null, lastSaveAt: Date.now(), signature: signatureOf(doc), pending: false });
     app.fitView();
-    await writeSessionPointer();
+    if (!await writeSessionPointer()) throw new Error('无法保存本地工程会话');
     sessionEvents.emit('recents-change');
     return doc;
   });
@@ -297,6 +334,7 @@ export { usage as storageUsage };
  * Safe to call when storage is unavailable — it simply stays off.
  */
 export function installSession() {
+  if (state.enabled) return true;
   if (!storageAvailable()) {
     console.info('[session] local storage unavailable; autosave is off');
     return false;
@@ -305,20 +343,24 @@ export function installSession() {
   requestPersistence();
 
   const touch = (doc) => schedule(doc || app.activeDoc);
-  app.on('doc-change', touch);
-  app.on('doc-structure', touch);
-  app.on('doc-resize', touch);
-  app.on('history-change', touch);
+  const on = (event, fn) => uninstall.push(app.on(event, fn));
+  on('doc-change', touch);
+  on('doc-structure', touch);
+  on('doc-resize', touch);
+  on('history-change', touch);
 
-  app.on('docs-change', () => {
+  on('docs-change', () => {
+    for (const doc of app.docs) {
+      if (!tracked.has(storeIdOf(doc))) schedule(doc);
+    }
     writeSessionPointer();
     sessionEvents.emit('recents-change');
   });
-  app.on('active-doc', () => writeSessionPointer());
+  on('active-doc', () => writeSessionPointer());
 
   // Closing a document should leave it in the recent list but drop it from the
   // session, so a refresh does not resurrect something you deliberately closed.
-  app.on('docs-change', () => {
+  on('docs-change', () => {
     const live = new Set(app.docs.map((d) => d._storeId).filter(Boolean));
     for (const [id, entry] of tracked) {
       if (!live.has(id)) {
@@ -329,12 +371,15 @@ export function installSession() {
   });
 
   // The last reliable moment before a reload or close.
-  document.addEventListener('visibilitychange', () => {
+  const hidden = () => {
     if (document.visibilityState === 'hidden') flushAll();
-  });
-  window.addEventListener('pagehide', () => { flushAll(); });
+  };
+  const pagehide = () => { flushAll(); };
+  document.addEventListener('visibilitychange', hidden);
+  window.addEventListener('pagehide', pagehide);
+  uninstall.push(() => document.removeEventListener('visibilitychange', hidden));
+  uninstall.push(() => window.removeEventListener('pagehide', pagehide));
 
-  prune(app.docs.map(storeIdOf));
   emit();
   return true;
 }

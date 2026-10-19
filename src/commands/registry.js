@@ -1,4 +1,5 @@
 import { app } from '../core/app.js';
+import { embedded } from '../embed/mode.js';
 
 /**
  * Central command registry. Menus, keyboard shortcuts, panel buttons and the
@@ -22,6 +23,7 @@ export const commands = new Map();
 
 export function registerCommand(cmd) {
   if (!cmd || !cmd.id) throw new Error('Command needs an id');
+  if (embedded && ['edit.generative-fill', 'edit.ai-settings', 'help.ai-guide', 'help.ai-settings'].includes(cmd.id)) return cmd;
   commands.set(cmd.id, cmd);
   return cmd;
 }

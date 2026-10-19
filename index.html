@@ -63,6 +63,7 @@
        * does not touch, so nothing below can lose work.
        */
       window.addEventListener('load', function () {
+        if (new URLSearchParams(location.search).get('embed') === '1') return;
         setTimeout(function () {
           if (window.pikado || sessionStorage.getItem('pk-healed')) return;
           if (!('serviceWorker' in navigator)) return;

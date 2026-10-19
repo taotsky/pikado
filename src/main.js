@@ -80,6 +80,8 @@ import { installSession, restoreSession } from './io/session.js';
 import { storageAvailable } from './io/store.js';
 import { installOffline } from './io/offline.js';
 import { tools } from './tools/base.js';
+import { embedded } from './embed/mode.js';
+import { startEmbedded } from './embed/bridge.js';
 
 /* ------------------------------------------------------------------ */
 
@@ -105,7 +107,7 @@ function initTools() {
   }
 }
 
-function boot() {
+async function boot() {
   const canvasEl = document.getElementById('view');
   const areaEl = document.getElementById('canvas-area');
 
@@ -137,9 +139,10 @@ function boot() {
   // automatically any more: with no session to restore the welcome screen is
   // what you should land on, not a blank Untitled-1 you did not ask for.
   installSession();
-  installOffline();
+  if (!embedded) installOffline();
   installFonts();
-  restoreSession().catch((err) => console.warn('[boot] session restore failed', err));
+  if (embedded) await restoreSession({ strict: true });
+  else restoreSession().catch((err) => console.warn('[boot] session restore failed', err));
   prefetchLazyChunks();
 
   // Work is continuously autosaved locally, so a refresh is not destructive and
@@ -270,5 +273,6 @@ function prefetchLazyChunks() {
   else setTimeout(warm, 2500);
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-else boot();
+const start = () => embedded ? startEmbedded(boot) : boot();
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+else start();

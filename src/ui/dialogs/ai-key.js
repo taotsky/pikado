@@ -2,6 +2,7 @@ import './dialogs.css';
 import { el } from '../../core/util.js';
 import { Dialog } from '../dialog.js';
 import { app } from '../../core/app.js';
+import { embedded } from '../../embed/mode.js';
 import {
   setCredential, forgetCredential, forgetAllCredentials, hasCredential,
   redactedCredential, credentialScope, configuredProviders,
@@ -33,6 +34,7 @@ import { consentedHosts, revokeAllConsent } from '../../ai/consent.js';
  * @returns {Promise<boolean>} whether a key was saved
  */
 export async function showAiKeyDialog(providerId = 'openai') {
+  if (embedded) return false;
   const provider = getProvider(providerId) || listProviders().find((p) => p.needsKey);
   if (!provider) {
     app.toast('No provider needs a key.', 'info');

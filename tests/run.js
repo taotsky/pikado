@@ -32,6 +32,7 @@ import './suites/apple-formats.test.js';
 import './suites/ai.test.js';
 import './suites/ai-credentials.test.js';
 import './suites/perf.test.js';
+import './suites/embed.test.js';
 
 const out = document.getElementById('out');
 const summary = document.getElementById('summary');
