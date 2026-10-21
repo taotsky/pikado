@@ -5,7 +5,7 @@ import {
   unitSquareToQuad, rectToQuad, identityWarp, evalWarp, drawMappedGrid,
 } from '../core/smart.js';
 import { createCanvas, cloneCanvas, clamp, deg2rad, rad2deg } from '../core/util.js';
-import { LayerType } from '../core/layer.js';
+import { LayerType, checkPixelAllocation, transformPixelSource } from '../core/layer.js';
 import { snapRect, snapPoint, clearSnapLines } from '../core/snapping.js';
 import { OVERLAY } from '../ui/brand.js';
 import { cmd, sep } from '../ui/canvas-menu.js';
@@ -161,27 +161,114 @@ function inverseBilinear(q, p) {
  * object. */
 
 /** Render `img` through the session's current shape into `ctx`. */
-function drawThrough(ctx, img, s) {
+function drawThrough(ctx, img, s, source = { x: 0, y: 0 }, output = { x: 0, y: 0 }) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   if (s.warp) {
-    const pts = s.warp.pts;
-    drawMappedGrid(ctx, img, s.bounds, 14, (u, v) => evalWarp(pts, u, v));
+    drawMappedGrid(ctx, img, source.canvas ? { x: 0, y: 0, width: img.width, height: img.height } : s.bounds, 14, (u, v) => {
+      const p = source.canvas ? mapSourcePoint(s, source, u, v) : evalWarp(s.warp.pts, u, v);
+      return { x: p.x - output.x, y: p.y - output.y };
+    });
     return;
   }
   if (isAffineQuad(s.quad)) {
     const m = affineFromRectToQuad(s.bounds, s.quad);
     if (!isFinite(m.a) || !isFinite(m.d) || Math.abs(m.a * m.d - m.b * m.c) < 1e-9) return;
     ctx.save();
-    ctx.transform(m.a, m.b, m.c, m.d, m.e, m.f);
-    ctx.drawImage(img, 0, 0);
+    ctx.transform(m.a, m.b, m.c, m.d, m.e - output.x, m.f - output.y);
+    ctx.drawImage(img, source.x, source.y);
     ctx.restore();
     return;
   }
   const N = clamp(Math.round(Math.max(s.bounds.width, s.bounds.height) / 40), 6, 18);
   const Q = unitSquareToQuad(s.quad);
-  drawMappedGrid(ctx, img, s.bounds, N, (u, v) => applyMatrix3(Q, u, v));
+  drawMappedGrid(ctx, img, source.canvas ? { x: 0, y: 0, width: img.width, height: img.height } : s.bounds, N, (u, v) => {
+    const p = source.canvas ? mapSourcePoint(s, source, u, v) : applyMatrix3(Q, u, v);
+    return { x: p.x - output.x, y: p.y - output.y };
+  });
+}
+
+function mapSourcePoint(s, source, u, v) {
+  const su = (source.x + u * source.canvas.width - s.bounds.x) / s.bounds.width;
+  const sv = (source.y + v * source.canvas.height - s.bounds.y) / s.bounds.height;
+  return s.warp ? evalWarp(s.warp.pts, su, sv) : applyMatrix3(unitSquareToQuad(s.quad), su, sv);
+}
+
+function cubicControls(points) {
+  const [p0, p1, p2, p3] = points;
+  const inner = (key, first) => {
+    const a = 27 * p1[key] - 8 * p0[key] - p3[key];
+    const b = 27 * p2[key] - p0[key] - 8 * p3[key];
+    return first ? (2 * a - b) / 18 : (2 * b - a) / 18;
+  };
+  return [p0, { x: inner('x', true), y: inner('y', true) }, { x: inner('x', false), y: inner('y', false) }, p3];
+}
+
+function mappedSourceBounds(s, source) {
+  if (s.warp) {
+    // The reparameterised Bezier control hull bounds even the extrapolated mask.
+    const rows = [0, 1, 2, 3].map((j) => cubicControls([0, 1, 2, 3].map((i) => mapSourcePoint(s, source, i / 3, j / 3))));
+    return [0, 1, 2, 3].flatMap((i) => cubicControls(rows.map((row) => row[i])));
+  }
+  const Q = unitSquareToQuad(s.quad);
+  const uv = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, v]) => ({
+    x: (source.x + u * source.canvas.width - s.bounds.x) / s.bounds.width,
+    y: (source.y + v * source.canvas.height - s.bounds.y) / s.bounds.height,
+  }));
+  const denominators = uv.map((p) => Q[6] * p.x + Q[7] * p.y + Q[8]);
+  if (Math.min(...denominators) <= 0 && Math.max(...denominators) >= 0) throw new Error('变换越过无限远边界，已取消操作');
+  return uv.map((p) => applyMatrix3(Q, p.x, p.y));
+}
+
+function affineWarp(s) {
+  const grid = s.warp.pts;
+  const matrix = affineFromRectToQuad(s.bounds, [grid[0][0], grid[0][3], grid[3][3], grid[3][0]]);
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
+    const p = applyM(matrix, { x: s.bounds.x + s.bounds.width * i / 3, y: s.bounds.y + s.bounds.height * j / 3 });
+    if (Math.hypot(p.x - grid[j][i].x, p.y - grid[j][i].y) > 1e-8) return null;
+  }
+  return matrix;
+}
+
+function transformedSurface(s, source, extraPixels = 0) {
+  const affine = s.warp ? affineWarp(s) : isAffineQuad(s.quad) ? affineFromRectToQuad(s.bounds, s.quad) : null;
+  if (affine) {
+    return transformPixelSource(source, affine, { memoryLimitMB: app.memoryLimitMB || 512 }, { extraPixels });
+  }
+  const points = mappedSourceBounds(s, source);
+  const snap = (value) => Math.abs(value - Math.round(value)) < 1e-8 ? Math.round(value) : value;
+  const x = Math.floor(snap(Math.min(...points.map((p) => p.x))));
+  const y = Math.floor(snap(Math.min(...points.map((p) => p.y))));
+  const width = Math.max(1, Math.ceil(snap(Math.max(...points.map((p) => p.x)))) - x);
+  const height = Math.max(1, Math.ceil(snap(Math.max(...points.map((p) => p.y)))) - y);
+  checkPixelAllocation(width, height, source.canvas.width * source.canvas.height * (source.defaultValue === undefined ? 1 : 3) + extraPixels, (app.memoryLimitMB || 512) * 1048576);
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+  let pixels = source.canvas;
+  if (source.defaultValue !== undefined) {
+    pixels = cloneCanvas(source.canvas);
+    const maskContext = pixels.getContext('2d');
+    const image = maskContext.getImageData(0, 0, pixels.width, pixels.height);
+    for (let i = 0; i < image.data.length; i += 4) {
+      const coverage = (image.data[i] * 0.299 + image.data[i + 1] * 0.587 + image.data[i + 2] * 0.114) * image.data[i + 3] / 255;
+      image.data[i] = image.data[i + 1] = image.data[i + 2] = coverage;
+      image.data[i + 3] = 255;
+    }
+    maskContext.putImageData(image, 0, 0);
+  }
+  drawThrough(ctx, pixels, s, source, { x, y });
+  if (source.defaultValue !== undefined) {
+    const image = ctx.getImageData(0, 0, width, height);
+    for (let i = 0; i < image.data.length; i += 4) {
+      // Triangle clip alpha is a mesh seam, not the stored mask coverage.
+      const coverage = image.data[i + 3] ? image.data[i] : source.defaultValue;
+      image.data[i] = image.data[i + 1] = image.data[i + 2] = coverage;
+      image.data[i + 3] = 255;
+    }
+    ctx.putImageData(image, 0, 0);
+  }
+  return { canvas, x, y };
 }
 
 /* ------------------------------------------------------------------ */
@@ -232,7 +319,7 @@ function rasterLayersOf(list) {
       for (const c of l.children || []) walk(c);
       return;
     }
-    if (l.canvas && !l.locked.all && !l.locked.pixels && !out.includes(l)) out.push(l);
+    if (l.pixelKey() && !l.locked.all && !l.locked.pixels && !out.includes(l)) out.push(l);
   };
   for (const l of list) walk(l);
   return out;
@@ -269,18 +356,18 @@ export function startTransform(doc, opts = {}) {
   }
 
   const bounds = unionBounds(layers, doc);
-  doc.beginEdit(layers);
 
   const s = {
     doc,
     layers,
     mode: opts.mode || 'free',
     selectionMode: false,
-    baseCanvases: layers.map((l) => cloneCanvas(l.canvas)),
+    baseCanvases: layers.map((l) => l.getPixelSource()),
     // A smart layer is transformed by composing maps, never by resampling its
     // pixels, so repeated sessions cannot compound quality loss.
     baseSmart: layers.map(smartShapeOf),
-    baseMasks: layers.map((l) => (l.mask && l.maskLinked ? cloneCanvas(l.mask) : null)),
+    baseSmartPayloads: layers.map((l) => l.smart),
+    baseMasks: layers.map((l) => (l.maskLinked ? l.getMaskSource() : null)),
     baseSelection: null,
     bounds,
     params: { tx: 0, ty: 0, sx: 1, sy: 1, angle: 0, skewX: 0, skewY: 0 },
@@ -409,30 +496,45 @@ function renderSession(s) {
     app.requestRender();
     return;
   }
-  for (let i = 0; i < s.layers.length; i++) {
-    const l = s.layers[i];
-    if (s.baseSmart && s.baseSmart[i]) {
-      if (renderSmartLayer(s, i)) continue;
-      if (!s.smartFallbackWarned) {
-        s.smartFallbackWarned = true;
-        app.toast('That transform collapses the Smart Object — falling back to its pixels.', 'warn');
+  const outputs = [];
+  try {
+    let preparedPixels = s.doc.memoryUse() / 4;
+    for (let i = 0; i < s.layers.length; i++) {
+      const pixels = s.baseSmart && s.baseSmart[i] ? null : s.baseCanvases[i] && transformedSurface(s, s.baseCanvases[i], preparedPixels);
+      if (pixels) preparedPixels += pixels.canvas.width * pixels.canvas.height;
+      const mask = s.baseMasks[i] && transformedSurface(s, s.baseMasks[i], preparedPixels);
+      if (mask) preparedPixels += mask.canvas.width * mask.canvas.height;
+      outputs.push({ pixels, mask });
+    }
+  } catch (error) {
+    cancelTransform();
+    app.toast(error.message, 'warn');
+    return;
+  }
+  try {
+    for (let i = 0; i < s.layers.length; i++) {
+      const l = s.layers[i];
+      let smartRendered = false;
+      if (s.baseSmart && s.baseSmart[i]) {
+        smartRendered = renderSmartLayer(s, i);
+        if (!smartRendered && !s.smartFallbackWarned) {
+          s.smartFallbackWarned = true;
+          app.toast('That transform collapses the Smart Object — falling back to its pixels.', 'warn');
+        }
+      }
+      const base = smartRendered ? null : outputs[i].pixels || (s.baseCanvases[i] && transformedSurface(s, s.baseCanvases[i]));
+      if (base) {
+        l.setPixelSource(base.canvas, base.x, base.y, s.doc);
+      }
+      const mbase = outputs[i].mask;
+      if (mbase) {
+        l.setMaskSource(mbase.canvas, mbase.x, mbase.y, s.baseMasks[i].defaultValue, s.doc);
       }
     }
-    const base = s.baseCanvases[i];
-    if (l.canvas && base) {
-      const c = l.canvas.getContext('2d');
-      c.setTransform(1, 0, 0, 1, 0, 0);
-      c.clearRect(0, 0, l.canvas.width, l.canvas.height);
-      drawThrough(c, base, s);
-    }
-    const mbase = s.baseMasks[i];
-    if (l.mask && mbase) {
-      const c = l.mask.getContext('2d');
-      c.setTransform(1, 0, 0, 1, 0, 0);
-      c.clearRect(0, 0, l.mask.width, l.mask.height);
-      drawThrough(c, mbase, s);
-      l.touchMask();
-    }
+  } catch (error) {
+    cancelTransform();
+    app.toast(error.message, 'warn');
+    return;
   }
   s.doc.touch('transform');
 }
@@ -478,16 +580,16 @@ export function cancelTransform() {
       const l = s.layers[i];
       const shape = s.baseSmart && s.baseSmart[i];
       if (shape && isSmartLayer(l)) {
-        // Put the payload back, not just the pixels: the session edited the
-        // transform record itself, and a stale one would resurface on the next
-        // re-render.
-        setSmartTransform(s.doc, l, shape.matrix, {
-          commit: false, perspective: shape.perspective, warp: shape.warp,
-        });
-      } else if (s.baseCanvases[i]) {
-        l.canvas = cloneCanvas(s.baseCanvases[i]);
+        l.smart = s.baseSmartPayloads[i];
       }
-      if (s.baseMasks[i]) { l.mask = cloneCanvas(s.baseMasks[i]); l.touchMask(); }
+      if (s.baseCanvases[i]) {
+        const base = s.baseCanvases[i];
+        l.setPixelSource(base.canvas, base.x, base.y, s.doc);
+      }
+      if (s.baseMasks[i]) {
+        const base = s.baseMasks[i];
+        l.setMaskSource(base.canvas, base.x, base.y, base.defaultValue, s.doc);
+      }
     }
     s.doc.touch('transform-cancel');
   }

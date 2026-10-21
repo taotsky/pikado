@@ -8,7 +8,7 @@ import { fontTableFor } from '../text/font-table.js';
  * `.pkd` — the lossless Pikado project format.
  *
  * Layout:
- *   0   8 bytes   ASCII magic "PIKADO01"
+ *   0   8 bytes   ASCII magic "PIKADO02" ("PIKADO01" is read-only legacy)
  *   8   4 bytes   uint32 (little-endian) manifest byte length
  *   12  n bytes   UTF-8 JSON manifest
  *   12+n …        payload blobs, back to back
@@ -20,8 +20,15 @@ import { fontTableFor } from '../text/font-table.js';
  * without a bespoke schema per payload type.
  */
 
-const MAGIC = 'PIKADO01';
-const FORMAT_VERSION = 1;
+const MAGIC = 'PIKADO02';
+const FORMAT_VERSION = 2;
+
+/** Inspect the file header without decoding image payloads. */
+export async function pkdVersion(blob) {
+  if (!(blob instanceof Blob)) return null;
+  const magic = new TextDecoder().decode(await blob.slice(0, 8).arrayBuffer());
+  return magic === 'PIKADO01' ? 1 : magic === MAGIC ? FORMAT_VERSION : null;
+}
 
 /* ------------------------------------------------------------------ */
 /* Value encoding                                                      */
@@ -224,8 +231,8 @@ export async function savePKD(doc) {
     maskEnabled: layer.maskEnabled,
     maskLinked: layer.maskLinked,
     maskInverted: layer.maskInverted,
-    canvas: layer.canvas ? enc.encode(layer.canvas) : null,
-    mask: layer.mask ? enc.encode(layer.mask) : null,
+    source: enc.encode(layer.getPixelSource()),
+    maskSource: enc.encode(layer.getMaskSource()),
     styles: enc.encode(layer.styles),
     text: enc.encode(layer.text),
     shape: enc.encode(layer.shape),
@@ -330,15 +337,20 @@ export async function loadPKD(arrayBuffer) {
   if (u8.length < 12) throw new Error('The project file is empty');
   let magic = '';
   for (let i = 0; i < 8; i++) magic += String.fromCharCode(u8[i]);
-  if (magic !== MAGIC) throw new Error('Not a Pikado project file');
+  if (magic !== MAGIC && magic !== 'PIKADO01') throw new Error('Unsupported Pikado project format');
 
   const manifestLength = new DataView(arrayBuffer).getUint32(8, true);
   if (12 + manifestLength > u8.length) throw new Error('The project file is truncated');
   const manifest = JSON.parse(new TextDecoder().decode(u8.subarray(12, 12 + manifestLength)));
   if (manifest.format !== 'pikado') throw new Error('Unrecognised project manifest');
+  const version = magic === 'PIKADO01' ? 1 : FORMAT_VERSION;
+  if (manifest.version !== version) throw new Error('Unsupported or mismatched Pikado project version');
 
   const base = 12 + manifestLength;
   const decoded = await Promise.all((manifest.blobs || []).map(async (entry) => {
+    if (!Number.isSafeInteger(entry.offset) || entry.offset < 0
+      || !Number.isSafeInteger(entry.length) || entry.length < 0
+      || entry.offset > u8.length - base - entry.length) throw new Error('The project payload is truncated');
     const bytes = u8.subarray(base + entry.offset, base + entry.offset + entry.length);
     if (entry.kind === 'png') return pngToCanvas(bytes);
     return new Uint8ClampedArray(bytes);
@@ -367,7 +379,7 @@ export async function loadPKD(arrayBuffer) {
   doc.activePathId = info.activePathId || null;
   doc.alphaChannels = decode(info.alphaChannels) || [];
 
-  const decodeLayer = (node, parent = null) => {
+  const decodeLayer = (node, parent = null, size = doc) => {
     const layer = new Layer({
       id: node.id,
       type: node.type || LayerType.RASTER,
@@ -378,8 +390,8 @@ export async function loadPKD(arrayBuffer) {
       blendMode: node.blendMode,
       clipped: node.clipped,
       locked: node.locked ? { ...node.locked } : undefined,
-      canvas: node.canvas ? decode(node.canvas) : null,
-      mask: node.mask ? decode(node.mask) : null,
+      canvas: version === 1 && node.canvas ? decode(node.canvas) : null,
+      mask: version === 1 && node.mask ? decode(node.mask) : null,
       maskEnabled: node.maskEnabled,
       maskLinked: node.maskLinked,
       maskInverted: node.maskInverted,
@@ -392,11 +404,28 @@ export async function loadPKD(arrayBuffer) {
       expanded: node.expanded,
       children: node.children ? [] : null,
     });
+    layer.setDocumentSize(size.width, size.height);
+    if (version === 2) {
+      for (const [key, setter] of [['source', 'setPixelSource'], ['maskSource', 'setMaskSource']]) {
+        const source = node[key] ? decode(node[key]) : null;
+        if (!source) continue;
+        if (!isCanvas(source.canvas) || !Number.isSafeInteger(source.x) || !Number.isSafeInteger(source.y)
+          || !Number.isSafeInteger(source.x + source.canvas.width) || !Number.isSafeInteger(source.y + source.canvas.height)) {
+          throw new Error('Invalid project layer pixel source');
+        }
+        if (key === 'maskSource') {
+          if (!Number.isInteger(source.defaultValue) || source.defaultValue < 0 || source.defaultValue > 255) {
+            throw new Error('Invalid project mask coverage');
+          }
+          layer[setter](source.canvas, source.x, source.y, source.defaultValue, size);
+        } else layer[setter](source.canvas, source.x, source.y, size);
+      }
+    }
     layer.editingMask = !!node.editingMask;
     if (node.colorLabel) layer.colorLabel = node.colorLabel;
     if (node.linkId) layer.linkId = node.linkId;
     layer.parent = parent;
-    if (node.children) layer.children = node.children.map((c) => decodeLayer(c, layer));
+    if (node.children) layer.children = node.children.map((c) => decodeLayer(c, layer, size));
     else if (layer.type === LayerType.GROUP) layer.children = [];
     layer.touchMask();
     return layer;
@@ -430,15 +459,15 @@ export async function loadPKD(arrayBuffer) {
     }
     let layers = null;
     if (source && source.__pk === 'smartdoc' && Array.isArray(source.layers)) {
-      layers = source.layers.map((n) => decodeLayer(n, null));
+      layers = source.layers.map((n) => decodeLayer(n, null, source));
     } else if (out.canvas) {
       // Projects written before smart objects were non-destructive stored only
       // a flattened copy — promote it so the layer still has editable contents.
       layers = [new Layer({ type: LayerType.RASTER, name: 'Layer 1', canvas: out.canvas })];
     }
     if (!layers || !layers.length) return out;
-    const w = (source && source.width) || out.sourceWidth || out.width || layers[0].canvas.width;
-    const h = (source && source.height) || out.sourceHeight || out.height || layers[0].canvas.height;
+    const w = (source && source.width) || out.sourceWidth || out.width || layers[0].getPixelSource().canvas.width;
+    const h = (source && source.height) || out.sourceHeight || out.height || layers[0].getPixelSource().canvas.height;
     const sd = new PikaDocument({
       width: w, height: h,
       name: (source && source.name) || out.name || 'Contents',
@@ -446,6 +475,8 @@ export async function loadPKD(arrayBuffer) {
     });
     sd.colorMode = (source && source.colorMode) || 'rgb';
     sd.layers = layers;
+    for (const layer of sd.flatLayers()) layer.setDocumentSize(w, h);
+    sd._pkdVersion = version;
     sd.activeLayerId = layers[0].id;
     sd.selectedLayerIds = [layers[0].id];
     sd.history.clear('Smart Object');
@@ -476,5 +507,6 @@ export async function loadPKD(arrayBuffer) {
 
   doc.history.clear('Open');
   doc.dirty = false;
+  doc._pkdVersion = version;
   return doc;
 }

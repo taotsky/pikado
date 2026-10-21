@@ -55,7 +55,7 @@ class CloneStampTool extends BrushToolBase {
     return true;
   }
 
-  makeStroke(e, doc, layer) {
+  makeStroke(e, doc, layer, target) {
     if (!this.state.aligned || !this.offset) {
       this.offset = {
         dx: Math.round(this.source.x - e.x),
@@ -65,12 +65,12 @@ class CloneStampTool extends BrushToolBase {
     const { dx, dy } = this.offset;
     const source = this.state.sampleAllLayers && !layer.editingMask
       ? cloneCanvas(getComposite(doc))
-      : cloneCanvas(layer.paintTarget());
+      : cloneCanvas(target);
 
     return new PaintStroke({
       doc,
       layer,
-      target: layer.paintTarget(),
+      target,
       brush: brushFromOptions(this.state),
       mode: 'paint',
       sourceImage: source,
@@ -153,7 +153,7 @@ class PatternStampTool extends BrushToolBase {
     });
   }
 
-  makeStroke(e, doc, layer) {
+  makeStroke(e, doc, layer, target) {
     const scale = this.state.scale / 100;
     // Aligned locks the tiling to the document origin; unaligned starts a fresh
     // tile phase at the point the stroke began.
@@ -177,7 +177,7 @@ class PatternStampTool extends BrushToolBase {
     return new PaintStroke({
       doc,
       layer,
-      target: layer.paintTarget(),
+      target,
       brush: brushFromOptions(this.state),
       mode: 'paint',
       sourceImage: source,

@@ -87,10 +87,7 @@ async function rasterize(doc, layer) {
     rasterizer = mod.rasterizeTextLayer;
   }
   doc.beginEdit(layer);
-  // rasterizeTextLayer() also stores the canvas on the layer, but assign the
-  // return value explicitly so this does not depend on that side effect.
-  const cv = await rasterizer(layer, doc);
-  if (cv) layer.canvas = cv;
+  await rasterizer(layer, doc);
   layer.thumbDirty = true;
 }
 

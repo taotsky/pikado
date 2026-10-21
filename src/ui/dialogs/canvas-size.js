@@ -5,6 +5,7 @@ import { el, createCanvas, formatBytes } from '../../core/util.js';
 import { Dialog } from '../dialog.js';
 import { toCss } from '../../core/color.js';
 import { UNIT_OPTIONS, toPixels, fromPixels, roundForUnit } from './new-document.js';
+import { commitPaintSurface } from '../../edit/pixels.js';
 
 /**
  * Image > Canvas Size. Grows or crops the canvas without resampling, anchored
@@ -214,7 +215,7 @@ export async function showCanvasSizeDialog(doc = app.activeDoc) {
       oc.globalCompositeOperation = 'destination-over';
       oc.drawImage(fill, 0, 0);
       oc.globalCompositeOperation = 'source-over';
-      bg.canvas = out;
+      commitPaintSurface(doc, bg, out, null, false);
     }
     doc.commit('Canvas Size');
   });

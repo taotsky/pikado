@@ -24,13 +24,8 @@ import { uid } from './util.js';
  * the layer stack itself. Those are shared across every frame, which is the point
  * — paint once, and the change appears in every frame that shows the layer.
  *
- * Position is not recorded either, and that is a real limitation rather than an
- * oversight: layer buffers in Pikado are always document-sized with no per-layer
- * offset (see ARCHITECTURE.md), so there is nowhere for a per-frame position to
- * live and nothing in the compositor that would honour one. Animating movement
- * means duplicating the layer and moving the pixels, or animating opacity between
- * two layers. Inventing a `frameOffset` field would have produced a control that
- * stored a number and changed nothing on screen.
+ * Position is shared across frames. The timeline records visibility and opacity;
+ * movement animation still uses separate positioned layers or an opacity tween.
  */
 
 /** Milliseconds per frame when nothing says otherwise. */

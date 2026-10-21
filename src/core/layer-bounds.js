@@ -11,12 +11,16 @@
  */
 
 /**
- * Keyed on the layer's underlying pixel buffer, which the copy-on-write rule
- * makes a sound invalidation key: `beginEdit` hands out a fresh buffer for each
- * recorded edit, so a changed layer can never hit a stale entry.
+ * Local bounds keyed on the immutable pixel source. Position is added on read,
+ * so translations and history states can safely share the same source buffer.
  * @type {WeakMap<HTMLCanvasElement, {x:number,y:number,width:number,height:number}|null>}
  */
 const cache = new WeakMap();
+
+function inDocument(layer, b) {
+  const source = layer.getPixelSource();
+  return b && source ? { ...b, x: b.x + source.x, y: b.y + source.y } : null;
+}
 
 /**
  * A layer's content bounds in document space, or null if it has no pixels.
@@ -32,10 +36,10 @@ export function layerBounds(layer) {
   if (!layer) return null;
   const key = layer.pixelKey();
   if (!key) return null;
-  if (cache.has(key)) return cache.get(key);
-  const b = layer.contentBounds();
+  if (cache.has(key)) return inDocument(layer, cache.get(key));
+  const b = layer.localContentBounds();
   cache.set(key, b);
-  return b;
+  return inDocument(layer, b);
 }
 
 /**
@@ -46,14 +50,15 @@ export function layerBounds(layer) {
 export function peekBounds(layer) {
   const key = layer && layer.pixelKey();
   if (!key) return undefined;
-  return cache.has(key) ? cache.get(key) : undefined;
+  return cache.has(key) ? inDocument(layer, cache.get(key)) : undefined;
 }
 
 /** Record where a known bounding box landed after a translation. */
 export function cacheShiftedBounds(layer, b, dx, dy) {
   const key = layer.pixelKey();
   if (!key) return;
-  cache.set(key, b ? { ...b, x: b.x + dx, y: b.y + dy } : null);
+  const source = layer.getPixelSource();
+  cache.set(key, b ? { ...b, x: b.x + dx - source.x, y: b.y + dy - source.y } : null);
 }
 
 /** The union of several layers' content bounds. */

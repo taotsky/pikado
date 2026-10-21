@@ -558,7 +558,7 @@ suite('vector / authored geometry survives document transforms', async (t) => {
     const drawn = inkBounds(layer.canvas);
     t.eq(`${drawn.minX},${drawn.minY}`, '8,8', 'the shape renders at its authored origin');
     translateLayerGeometry(layer, 60, 40);
-    layer.canvas = rasterizeShapeLayer(layer, doc);
+    rasterizeShapeLayer(layer, doc);
     const moved = inkBounds(layer.canvas);
     t.eq(`${moved.minX},${moved.minY}`, '68,48', 'translating the parameters moves the re-render with them');
     t.eq(`${moved.width},${moved.height}`, `${drawn.width},${drawn.height}`, 'and does not change its size');
@@ -577,7 +577,7 @@ suite('vector / authored geometry survives document transforms', async (t) => {
     op(doc);
     const live = doc.findLayer(layer.id);
     const drawn = inkBounds(live.canvas);
-    live.canvas = rasterizeShapeLayer(live, doc);
+    rasterizeShapeLayer(live, doc);
     t.eq(box(inkBounds(live.canvas)), box(drawn),
       `${name}: re-rendering from the parameters reproduces the transformed pixels`);
   }
@@ -588,7 +588,7 @@ suite('vector / authored geometry survives document transforms', async (t) => {
     const { doc, layer } = withShape();
     doc.resample(400, 300);
     const live = doc.findLayer(layer.id);
-    live.canvas = rasterizeShapeLayer(live, doc);
+    rasterizeShapeLayer(live, doc);
     t.eq(box(inkBounds(live.canvas)), '16,16,84,48', 'resampling doubles the authored geometry exactly');
   }
 
@@ -597,11 +597,11 @@ suite('vector / authored geometry survives document transforms', async (t) => {
     const doc = new PikaDocument({ width: 200, height: 150, name: 'txt' });
     const layer = new Layer({ type: LayerType.TEXT, name: 'T' });
     layer.text = { text: 'Hi', x: 10, y: 40, size: 28, color: '#ffffff', font: 'sans-serif' };
-    layer.canvas = rasterizeTextLayer(layer, doc);
+    rasterizeTextLayer(layer, doc);
     const before = inkBounds(layer.canvas);
     translateLayerGeometry(layer, 60, 40);
     t.eq(`${layer.text.x},${layer.text.y}`, '70,80', 'the text anchor moves with the layer');
-    layer.canvas = rasterizeTextLayer(layer, doc);
+    rasterizeTextLayer(layer, doc);
     const after = inkBounds(layer.canvas);
     t.eq(`${after.minX - before.minX},${after.minY - before.minY}`, '60,40',
       're-rendering the text keeps it where it was put');

@@ -1113,9 +1113,8 @@ function isBlankCanvas(canvas) {
  * layers at 1200x900 cost 164.8 MB, and at 4000x3000 each one is 48 MB of
  * provably transparent pixels for 8 bytes of file.
  *
- * Sharing is safe because `Layer.beginEdit()` clones `this.canvas`
- * unconditionally before any write (src/core/layer.js:124), so a layer stops
- * sharing the moment anyone paints on it. Only the layers nobody touches keep
+ * Sharing is safe because pixel-region commits install a private buffer, so a
+ * layer stops sharing the moment anyone paints on it. Only the layers nobody touches keep
  * pointing at the one blank, which is exactly the set worth not paying for.
  */
 function blankFor(doc, ctx) {
@@ -1125,15 +1124,16 @@ function blankFor(doc, ctx) {
   return ctx.blank;
 }
 
-function revive(layer, stored, render, ctx, label) {
-  const out = render();
-  if (isBlankCanvas(out) && stored && !isBlankCanvas(stored)) {
-    layer.canvas = stored;
+function revive(layer, render, ctx, label) {
+  const stored = layer.getPixelSource();
+  render();
+  const rendered = layer.getPixelSource();
+  if ((!rendered || isBlankCanvas(rendered.canvas)) && stored && !isBlankCanvas(stored.canvas)) {
+    layer.setPixelSource(stored.canvas, stored.x, stored.y);
     layer.thumbDirty = true;
     ctx.warnings.push(t('"{name}" could not be re-rendered from its live data — the stored pixels were kept.', { name: label }));
     return;
   }
-  layer.canvas = out;
   layer.thumbDirty = true;
 }
 
@@ -1286,11 +1286,11 @@ async function buildLeafLayer(rec, info, doc, ctx) {
   } else if (info.text) {
     layer = new Layer({ type: LayerType.TEXT, name: label, canvas: canvas || (tile ? null : blankFor(doc, ctx)), tile });
     layer.text = info.text;
-    revive(layer, canvas, () => rasterizeTextLayer(layer, doc), ctx, label);
+    revive(layer, () => rasterizeTextLayer(layer, doc), ctx, label);
   } else if (info.shape || info.vectorMask) {
     layer = new Layer({ type: LayerType.SHAPE, name: label, canvas: canvas || (tile ? null : blankFor(doc, ctx)), tile });
     layer.shape = info.shape ? restorePrivateShape(info.shape) : vectorShapeOf(info, doc);
-    revive(layer, canvas, () => rasterizeShapeLayer(layer, doc), ctx, label);
+    revive(layer, () => rasterizeShapeLayer(layer, doc), ctx, label);
   } else if (info.fill) {
     layer = new Layer({ type: LayerType.SHAPE, name: label, canvas: canvas || (tile ? null : blankFor(doc, ctx)), tile });
     // Fill layers cover the whole canvas; giving them explicit geometry keeps
@@ -1301,12 +1301,13 @@ async function buildLeafLayer(rec, info, doc, ctx) {
   }
 
   applyCommon(layer, rec, info);
+  layer.setDocumentSize(doc.width, doc.height);
   layer.blendMode = blendIdOf(rec.blendKey) === 'pass-through' ? 'normal' : blendIdOf(rec.blendKey);
   await attachMask(layer, rec, doc, ctx);
   return layer;
 }
 
-/** Rebuild a user layer mask as a document-sized greyscale canvas. */
+/** Keep a user mask at its full stored rectangle, even outside the document. */
 async function attachMask(layer, rec, doc, ctx) {
   const m = rec.mask;
   if (!m) return;
@@ -1315,10 +1316,12 @@ async function attachMask(layer, rec, doc, ctx) {
   const mw = m.right - m.left;
   const mh = m.bottom - m.top;
 
-  const canvas = createCanvas(doc.width, doc.height);
+  const width = mw > 0 && mh > 0 && mw * mh <= 200e6 ? mw : 1;
+  const height = mw > 0 && mh > 0 && mw * mh <= 200e6 ? mh : 1;
+  const canvas = createCanvas(width, height);
   const c = canvas.getContext('2d');
-  c.fillStyle = m.defaultColor >= 128 ? '#ffffff' : '#000000';
-  c.fillRect(0, 0, doc.width, doc.height);
+  c.fillStyle = `rgb(${m.defaultColor},${m.defaultColor},${m.defaultColor})`;
+  c.fillRect(0, 0, width, height);
 
   if (mw > 0 && mh > 0 && mw * mh <= 200e6) {
     const plane = await decodeChannel(ctx.buf, channel, mw, mh, ctx, layer.name);
@@ -1329,13 +1332,12 @@ async function attachMask(layer, rec, doc, ctx) {
         const v = plane[p];
         d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = 255;
       }
-      const tile = createCanvas(mw, mh);
-      tile.getContext('2d').putImageData(img, 0, 0);
-      c.drawImage(tile, m.left, m.top);
+      c.putImageData(img, 0, 0);
     }
   }
 
-  layer.mask = canvas;
+  layer.setMaskSource(canvas, m.left + (m.relative ? rec.left : 0),
+    m.top + (m.relative ? rec.top : 0), m.defaultColor, doc);
   layer.maskEnabled = !m.disabled;
   layer.maskInverted = !!m.inverted;
   // "Position relative to layer" is the inverse of the link toggle.

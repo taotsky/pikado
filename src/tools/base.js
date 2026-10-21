@@ -139,12 +139,12 @@ export class Tool {
       if (warn && this.app) this.app.toast(t('Layer "{name}" is locked.', { name: l.name }));
       return false;
     }
-    if (l.editingMask && l.mask) return true;
+    if (l.editingMask && l.getMaskSource()) return true;
     if (l.type === 'group') {
       if (warn && this.app) this.app.toast('Cannot paint on a group. Select a layer inside it.');
       return false;
     }
-    if (l.type === 'adjustment' && !l.mask) {
+    if (l.type === 'adjustment' && !l.getMaskSource()) {
       if (warn && this.app) this.app.toast('Adjustment layers can only be painted on their mask.');
       return false;
     }

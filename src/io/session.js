@@ -6,6 +6,7 @@ import { getComposite } from '../render/compositor.js';
 import { savePKD, loadPKD } from './pkd.js';
 import {
   putDoc, getDocData, listDocs, deleteDoc, kvSet, kvGet,
+  getUpgradeCheckpoint, restoreUpgradeCheckpoint,
   storageAvailable, requestPersistence, usage, DOC_LIMIT_BYTES,
 } from './store.js';
 
@@ -297,6 +298,19 @@ export async function restoreSession({ strict = false } = {}) {
 /** @returns {Promise<Array<{id,name,width,height,layers,updatedAt,bytes,thumb}>>} */
 export function listRecent() {
   return listDocs();
+}
+
+export { getUpgradeCheckpoint };
+
+/** Recovery is explicit and only allowed once the live project has been closed. */
+export async function recoverUpgradeCheckpoint(id) {
+  await saveQueue;
+  if (app.docs.some((doc) => storeIdOf(doc) === id)) {
+    throw new Error('Close this project before restoring its upgrade checkpoint.');
+  }
+  const result = await restoreUpgradeCheckpoint(id);
+  sessionEvents.emit('recents-change');
+  return result;
 }
 
 /** Open a stored project into a tab, or focus it if already open. */

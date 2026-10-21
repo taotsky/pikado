@@ -1,5 +1,5 @@
 import { PikaDocument } from '../core/document.js';
-import { LayerType, createRasterLayer } from '../core/layer.js';
+import { Layer, LayerType } from '../core/layer.js';
 import { uid, createCanvas, ctx2d, loadImage } from '../core/util.js';
 import { getComposite, compositeList } from '../render/compositor.js';
 import { fontStack } from '../text/fonts.js';
@@ -78,8 +78,10 @@ export async function importSVG(text, name = 'Drawing') {
   const img = await loadImage(new Blob([markup], { type: 'image/svg+xml;charset=utf-8' }));
 
   const doc = new PikaDocument({ width: targetW, height: targetH, name });
-  const layer = createRasterLayer(targetW, targetH, name);
-  ctx2d(layer.canvas).drawImage(img, 0, 0, targetW, targetH);
+  const layer = new Layer({ type: LayerType.RASTER, name });
+  const pixels = createCanvas(targetW, targetH);
+  ctx2d(pixels).drawImage(img, 0, 0, targetW, targetH);
+  layer.setPixelSource(pixels, 0, 0, doc);
   doc.layers = [layer];
   doc.activeLayerId = layer.id;
   doc.selectedLayerIds = [layer.id];

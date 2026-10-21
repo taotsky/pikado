@@ -30,6 +30,7 @@ const DB_VERSION = 2;
 export const STORE_LIMIT_BYTES = 1_200 * 1024 * 1024;
 /** A single project larger than this is not worth autosaving. */
 export const DOC_LIMIT_BYTES = 320 * 1024 * 1024;
+const RECOVERY_PREFIX = 'pkd-recovery:';
 
 let dbPromise = null;
 
@@ -163,13 +164,104 @@ export async function putDoc(rec, { keepIds = [] } = {}) {
     updatedAt: nextStamp(),
     bytes: rec.data.size,
     thumb: rec.thumb || null,
+    formatVersion: new TextDecoder().decode(await rec.data.slice(0, 8).arrayBuffer()) === 'PIKADO02' ? 2 : 1,
   };
-  await withTx(['docmeta', 'docdata'], 'readwrite', (tx) => {
-    tx.objectStore('docmeta').put(meta);
-    tx.objectStore('docdata').put({ id: rec.id, data: rec.data });
+  const prior = {};
+  await withTx(['docmeta', 'docdata'], 'readonly', (tx) => {
+    tx.objectStore('docmeta').get(rec.id).onsuccess = (e) => { prior.meta = e.target.result; };
+    tx.objectStore('docdata').get(rec.id).onsuccess = (e) => { prior.data = e.target.result?.data; };
   });
-  await prune(keepIds);
+  const legacy = prior.data && new TextDecoder().decode(await prior.data.slice(0, 8).arrayBuffer()) === 'PIKADO01';
+  const failure = {};
+  try {
+    await withTx(['docmeta', 'docdata', 'kv'], 'readwrite', (tx) => {
+      const docs = tx.objectStore('docmeta');
+      const data = tx.objectStore('docdata');
+      const kv = tx.objectStore('kv');
+      const requests = [docs.get(rec.id), data.get(rec.id), docs.getAll(), kv.getAll()];
+      let pending = requests.length;
+      for (const req of requests) req.onsuccess = () => {
+        if (--pending) return;
+        try {
+          const [current, stored, allDocs, values] = requests.map((r) => r.result);
+          if (current?.updatedAt !== prior.meta?.updatedAt || stored?.data.size !== prior.data?.size) {
+            throw new Error('The stored project changed. Please save again.');
+          }
+          const key = `${RECOVERY_PREFIX}v1:${rec.id}`;
+          const checkpoint = meta.formatVersion === 2 && legacy && !values.some((v) => v.key === key)
+            ? { key, value: { id: rec.id, data: stored.data, meta: current,
+              session: values.find((v) => v.key === 'session')?.value || null,
+              bytes: stored.data.size, createdAt: nextStamp() } } : null;
+          let total = allDocs.reduce((n, d) => n + (d.bytes || 0), 0)
+            - (current?.bytes || 0) + meta.bytes
+            + values.filter((v) => v.key.startsWith(RECOVERY_PREFIX)).reduce((n, v) => n + (v.value?.bytes || 0), 0)
+            + (checkpoint?.value.bytes || 0);
+          const keep = new Set([...keepIds, rec.id]);
+          const evict = [];
+          for (const d of allDocs.sort((a, b) => a.updatedAt - b.updatedAt)) {
+            if (total <= STORE_LIMIT_BYTES) break;
+            if (keep.has(d.id)) continue;
+            evict.push(d.id);
+            total -= d.bytes || 0;
+          }
+          if (total > STORE_LIMIT_BYTES) throw new Error('Local project storage is full. Export projects before saving again.');
+          if (checkpoint) kv.put(checkpoint);
+          for (const id of evict) { docs.delete(id); data.delete(id); }
+          docs.put(meta);
+          data.put({ id: rec.id, data: rec.data });
+        } catch (err) { failure.error = err; tx.abort(); }
+      };
+    });
+  } catch (err) { throw failure.error || err; }
   return { id: rec.id, bytes: meta.bytes };
+}
+
+/** The original v1 project, kept outside the normal recent-project eviction. */
+export async function getUpgradeCheckpoint(id) {
+  return kvGet(`${RECOVERY_PREFIX}v1:${id}`);
+}
+
+/** Restore explicitly: preserve current work before replacing it with a v1 checkpoint. */
+export async function restoreUpgradeCheckpoint(id) {
+  if (typeof id !== 'string' || !id) throw new Error('A project id is required');
+  const result = {};
+  const failure = {};
+  try {
+    await withTx(['docmeta', 'docdata', 'kv'], 'readwrite', (tx) => {
+      const docs = tx.objectStore('docmeta');
+      const data = tx.objectStore('docdata');
+      const kv = tx.objectStore('kv');
+      const requests = [kv.get(`${RECOVERY_PREFIX}v1:${id}`), docs.get(id), data.get(id), docs.getAll(), kv.getAll()];
+      let pending = requests.length;
+      for (const req of requests) req.onsuccess = () => {
+        if (--pending) return;
+        try {
+          const [record, meta, current, allDocs, values] = requests.map((r) => r.result);
+          const checkpoint = record?.value;
+          if (!checkpoint?.data || !checkpoint.meta) throw new Error('No upgrade checkpoint exists for this project');
+          if (!current?.data || !meta) throw new Error('The current project is missing; recovery was cancelled');
+          const bytes = allDocs.reduce((n, d) => n + (d.bytes || 0), 0)
+            + values.filter((v) => v.key.startsWith(RECOVERY_PREFIX)).reduce((n, v) => n + (v.value?.bytes || 0), 0)
+            + checkpoint.data.size;
+          if (bytes > STORE_LIMIT_BYTES) throw new Error('Not enough local space to preserve current work before recovery');
+          const preservedKey = `${RECOVERY_PREFIX}before-restore:${id}:${crypto.randomUUID()}`;
+          kv.put({ key: preservedKey, value: { id, meta, data: current.data,
+            session: values.find((v) => v.key === 'session')?.value || null,
+            bytes: current.data.size, createdAt: nextStamp() } });
+          docs.put({ ...checkpoint.meta, updatedAt: nextStamp() });
+          data.put({ id, data: checkpoint.data });
+          // Other projects may have changed since this checkpoint; only restore this one's tab reference.
+          const session = values.find((v) => v.key === 'session')?.value;
+          const oldRef = checkpoint.session?.open?.find((ref) => ref.id === id);
+          const open = (session?.open || []).filter((ref) => ref.id !== id);
+          open.push(oldRef || { id, name: checkpoint.meta.name });
+          kv.put({ key: 'session', value: { ...session, open, activeId: id, savedAt: Date.now() } });
+          result.preservedKey = preservedKey;
+        } catch (err) { failure.error = err; tx.abort(); }
+      };
+    });
+  } catch (err) { throw failure.error || err; }
+  return result;
 }
 
 /** Metadata for every stored project, most recently updated first. */
@@ -279,7 +371,8 @@ export async function kvDelete(key) {
 /** Bytes and count currently held, plus the browser's own estimate. */
 export async function usage() {
   const docs = await listDocs();
-  const bytes = docs.reduce((n, d) => n + (d.bytes || 0), 0);
+  const recoveryBytes = await recoveryUsage();
+  const bytes = docs.reduce((n, d) => n + (d.bytes || 0), 0) + recoveryBytes;
   let quota = null;
   try {
     if (navigator.storage && navigator.storage.estimate) {
@@ -287,7 +380,20 @@ export async function usage() {
       quota = { quota: est.quota, used: est.usage };
     }
   } catch { /* not available */ }
-  return { bytes, count: docs.length, quota };
+  return { bytes, count: docs.length, recoveryBytes, quota };
+}
+
+async function recoveryUsage() {
+  let bytes = 0;
+  await withTx(['kv'], 'readonly', (tx) => {
+    tx.objectStore('kv').openCursor().onsuccess = (e) => {
+      const cur = e.target.result;
+      if (!cur) return;
+      if (cur.key.startsWith(RECOVERY_PREFIX)) bytes += cur.value.value?.bytes || 0;
+      cur.continue();
+    };
+  });
+  return bytes;
 }
 
 /**
@@ -297,7 +403,7 @@ export async function usage() {
 export async function prune(keepIds = []) {
   const keep = new Set(keepIds);
   const docs = await listDocs();
-  let total = docs.reduce((n, d) => n + (d.bytes || 0), 0);
+  let total = docs.reduce((n, d) => n + (d.bytes || 0), 0) + await recoveryUsage();
   if (total <= STORE_LIMIT_BYTES) return { evicted: 0, bytes: total };
 
   let evicted = 0;

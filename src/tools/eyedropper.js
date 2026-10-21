@@ -397,23 +397,8 @@ export function straightenFromRuler(doc) {
   const nw = Math.max(1, Math.ceil(w * cos + h * sin));
   const nh = Math.max(1, Math.ceil(w * sin + h * cos));
 
-  const spin = (src) => {
-    if (!src) return null;
-    const out = createCanvas(nw, nh);
-    const c = out.getContext('2d');
-    c.imageSmoothingQuality = 'high';
-    c.translate(nw / 2, nh / 2);
-    c.rotate(rot);
-    c.translate(-w / 2, -h / 2);
-    c.drawImage(src, 0, 0);
-    return out;
-  };
-
-  doc.beginEdit(doc.flatLayers());
-  for (const l of doc.flatLayers()) {
-    if (l.canvas) l.canvas = spin(l.canvas);
-    if (l.mask) { l.mask = spin(l.mask); l.touchMask(); }
-  }
+  const matrix = new DOMMatrix().translate(nw / 2, nh / 2).rotate(rad2deg(rot)).translate(-w / 2, -h / 2);
+  doc.transformAffine(matrix, nw, nh);
   const mapPoint = (px, py) => {
     const dx = px - w / 2, dy = py - h / 2;
     return {
@@ -424,12 +409,6 @@ export function straightenFromRuler(doc) {
   const a = mapPoint(m.x1, m.y1), b = mapPoint(m.x2, m.y2);
   doc.measurement = { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
 
-  doc.width = nw;
-  doc.height = nh;
-  doc.selection.resize(nw, nh);
-  doc.selection.clear();
-  doc.invalidate();
-  doc.emit('resize');
   doc.commit('Straighten Layer');
   app.fitView();
   return true;

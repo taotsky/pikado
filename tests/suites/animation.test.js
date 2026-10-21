@@ -33,9 +33,7 @@ function threeColourDoc(t, w = 48, h = 32) {
   const doc = t.doc(w, h, '#ffffff', 'anim');
   for (const colour of ['#ff0000', '#00ff00', '#0000ff']) {
     const layer = createRasterLayer(w, h, colour);
-    const c = ctx2d(layer.canvas);
-    c.fillStyle = colour;
-    c.fillRect(0, 0, w, h);
+    t.fill(layer, colour);
     doc.layers.unshift(layer);
   }
   doc.commit('Layers');

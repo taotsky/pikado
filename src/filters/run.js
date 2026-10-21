@@ -5,6 +5,7 @@ import { getAdjustment, applyAdjustment } from '../adjustments/registry.js';
 import { setLayerPreview } from '../render/compositor.js';
 import { paramDialog } from '../ui/dialog.js';
 import { app } from '../core/app.js';
+import { commitPaintSurface } from '../edit/pixels.js';
 
 /**
  * Runs filters and destructive adjustments against a layer, honouring the
@@ -17,11 +18,11 @@ import { app } from '../core/app.js';
 /** The surface a pixel operation should modify for the given layer. */
 export function operableSurface(doc, layer) {
   if (!layer) return null;
-  if (layer.editingMask && layer.mask) return { canvas: layer.mask, isMask: true };
+  if (layer.editingMask && layer.getMaskSource()) return { canvas: layer.projectMask(doc), isMask: true };
   if (layer.type === 'adjustment' || layer.type === 'group') {
-    return layer.mask ? { canvas: layer.mask, isMask: true } : null;
+    return layer.getMaskSource() ? { canvas: layer.projectMask(doc), isMask: true } : null;
   }
-  return layer.canvas ? { canvas: layer.canvas, isMask: false } : null;
+  return layer.pixelKey() ? { canvas: layer.projectPixels(doc), isMask: false } : null;
 }
 
 /**
@@ -87,20 +88,7 @@ export function commitSurface(doc, layer, canvas, label) {
   if (!canvas) return false;
   const surf = operableSurface(doc, layer);
   if (!surf) return false;
-  /*
-   * Only the surface being replaced needs forking, and strictly speaking neither
-   * does — both are assigned outright a line later. The clone is kept because
-   * `beginEdit` is also what marks the layer dirty and bumps the mask version,
-   * and narrowing it to one surface is the change that stops every filter apply
-   * on a masked layer permanently forking a mask nobody touched.
-   */
-  doc.beginEdit(layer, { surface: surf.isMask ? 'mask' : 'canvas' });
-  if (surf.isMask) {
-    layer.mask = canvas;
-    layer.touchMask();
-  } else {
-    layer.canvas = canvas;
-  }
+  commitPaintSurface(doc, layer, canvas, operableRect(doc), surf.isMask);
   doc.commit(label);
   return true;
 }
@@ -119,7 +107,7 @@ export async function applyFilterCommand(id, preset) {
 
   // Smart objects stack filters instead of burning them into pixels. Editing
   // the layer's *mask* is still a normal destructive pixel op.
-  if (layer.type === 'smart' && layer.smart && layer.smart.source && !(layer.editingMask && layer.mask)) {
+  if (layer.type === 'smart' && layer.smart && layer.smart.source && !(layer.editingMask && layer.getMaskSource())) {
     const { promptSmartFilter } = await import('../core/smart.js');
     await promptSmartFilter(doc, layer, id, preset);
     return;

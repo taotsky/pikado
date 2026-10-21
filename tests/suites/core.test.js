@@ -422,34 +422,28 @@ suite('core / undo and redo still restore the right selection', async (t) => {
   t.ok(doc.selection.mask, 'and undo restores the one before it');
 });
 
-suite('core / beginEdit forks only the surface being written', async (t) => {
+suite('core / region edits fork only the surface being written', async (t) => {
   const W = 200, H = 150;
   const doc = t.doc(W, H, '#ffffff', 'fork');
   const layer = doc.layers[0];
   layer.addMask(W, H, '#ffffff');
 
-  /*
-   * Filters replace layer.canvas outright, so forking the mask alongside it left
-   * a byte-identical copy alive in history on every apply — 7.7 MB per apply at
-   * 1600x1200 for a mask nobody edited. Verified to fail by dropping the
-   * `surface` argument: maskAfter stops being the same object.
-   */
-  const maskBefore = layer.mask;
-  const canvasBefore = layer.canvas;
+  const maskBefore = layer.getMaskSource().canvas;
+  const canvasBefore = layer.pixelKey();
   doc.beginEdit(layer, { surface: 'canvas' });
-  t.ok(layer.canvas !== canvasBefore, 'the canvas is forked, because that is what is being written');
-  t.is(layer.mask, maskBefore, 'the mask is left alone');
+  t.is(layer.pixelKey(), canvasBefore, 'beginEdit does not clone a buffer before an edit exists');
+  t.fill(layer, '#ff0000', 0, 0, 1, 1);
+  t.isNot(layer.pixelKey(), canvasBefore, 'committing pixels gives that surface a private source');
+  t.is(layer.getMaskSource().canvas, maskBefore, 'the untouched mask remains shared');
+  t.pixel(canvasBefore, 0, 0, '255,255,255,255', 'the previous pixel source was not mutated');
 
-  // The mirror case, and the reason the default stays 'both'.
-  const maskBefore2 = layer.mask;
-  const canvasBefore2 = layer.canvas;
+  const maskBefore2 = layer.getMaskSource().canvas;
+  const canvasBefore2 = layer.pixelKey();
   doc.beginEdit(layer, { surface: 'mask' });
-  t.ok(layer.mask !== maskBefore2, 'editing the mask forks the mask');
-  t.is(layer.canvas, canvasBefore2, 'and leaves the canvas alone');
-
-  const c3 = layer.canvas, m3 = layer.mask;
-  doc.beginEdit(layer);
-  t.ok(layer.canvas !== c3 && layer.mask !== m3, 'with no surface named, both are forked as before');
+  layer.commitMaskRegion(doc, { x: 0, y: 0, width: 1, height: 1 }, new ImageData(1, 1));
+  t.isNot(layer.getMaskSource().canvas, maskBefore2, 'committing the mask replaces only its source');
+  t.is(layer.pixelKey(), canvasBefore2, 'mask editing leaves pixel ownership alone');
+  t.pixel(maskBefore2, 0, 0, '255,255,255,255', 'the previous mask source was not mutated');
 });
 
 suite('core / memoryUse counts the derived caches too', async (t) => {
@@ -473,11 +467,11 @@ suite('core / memoryUse counts the derived caches too', async (t) => {
   // Still de-duplicated by identity, which is what the PSD shared blank needs.
   const { createRasterLayer } = await import('/src/core/layer.js');
   const shared = createRasterLayer(W, H, 'shared');
-  shared.canvas = layer.canvas;
+  shared.setPixelSource(layer.getPixelSource().canvas, 0, 0, doc);
   doc.layers.unshift(shared);
   t.eq(doc.memoryUse(), doc.memoryUse(), 'stable');
   const twice = createRasterLayer(W, H, 'twice');
-  twice.canvas = layer.canvas;
+  twice.setPixelSource(layer.getPixelSource().canvas, 0, 0, doc);
   doc.layers.unshift(twice);
   t.lt(doc.memoryUse(), (plain + W * H * 4 * 4), 'a shared buffer is still counted once');
 });
@@ -491,8 +485,8 @@ suite('core / memoryUse counts the derived caches too', async (t) => {
  * instead of in a document-sized buffer. That is how a PSD stores them, and
  * expanding it was costing 133x on a 120x120 layer in a 1600x1200 document.
  *
- * `.canvas` still hands back a document-sized buffer, so the ~230 places that
- * read it are unchanged. What matters is that the paths which run constantly —
+ * `.canvas` hands back a disposable document-sized projection. What matters is
+ * that the paths which run constantly —
  * snapshot, thumbnail, memoryUse, contentBounds, and the compositor — do NOT
  * read it, because any one of them would expand the whole document on the first
  * commit or the first frame.
@@ -526,10 +520,10 @@ suite('core / a layer can hold its pixels compactly', async (t) => {
   t.ok(layer.tile, 'and measuring its content bounds leaves it compact');
   t.eq(`${b.x},${b.y},${b.width},${b.height}`, '250,180,100,80', 'bounds come back in document space');
 
-  // Reading .canvas is the one thing that does expand it, on purpose.
+  // Reading a projection must not replace the authoritative compact pixels.
   const full = layer.canvas;
   t.eq(`${full.width}x${full.height}`, `${W}x${H}`, 'reading .canvas gives a document-sized buffer');
-  t.notOk(layer.tile, 'and the tile is given up, because writers now own the full buffer');
+  t.ok(layer.tile, 'and the authoritative tile remains intact');
   t.pixel(full, 300, 220, '255,0,0,255', 'with the pixels in the right place');
   t.pixel(full, 10, 10, '0,0,0,0', 'and nothing outside the tile');
 });
@@ -548,7 +542,7 @@ suite('core / compositing a compact layer matches the expanded one exactly', asy
       c.fillRect(0, 0, 60, 50);
       const l = new Layer({ type: LayerType.RASTER, name: `l${i}` });
       l.setTile(tile, 40 + i * 55, 30 + i * 40, W, H);
-      if (!compact) l.canvas; // force expansion
+      if (!compact) l.setPixelSource(l.projectPixels(doc), 0, 0, doc);
       doc.addLayer(l, { above: doc.layers[0] });
     }
     return doc;
@@ -585,16 +579,14 @@ suite('core / editing a compact layer keeps history correct', async (t) => {
 
   t.pixel(getComposite(doc), 140, 100, '0,255,0,255', 'the tile shows where it was placed');
 
-  // beginEdit must fork the tile rather than expanding it — a layer that is
-  // merely touched should stay cheap.
+  // Preparing an edit is cheap; ownership changes only when pixels are committed.
   const tileBefore = layer.tile.canvas;
   doc.beginEdit(layer);
   t.ok(layer.tile, 'beginEdit leaves the layer compact');
-  t.ok(layer.tile.canvas !== tileBefore, 'but gives it a private copy to write into');
+  t.is(layer.tile.canvas, tileBefore, 'and does not clone before there is an edit');
 
-  // Now actually write through .canvas, which expands, and check undo.
-  ctx2d(layer.canvas).fillStyle = '#0000ff';
-  ctx2d(layer.canvas).fillRect(0, 0, W, H);
+  t.fill(layer, '#0000ff', 0, 0, W, H);
+  t.isNot(layer.pixelKey(), tileBefore, 'the actual edit installs private pixels');
   doc.commit('paint');
   t.pixel(getComposite(doc), 10, 10, '0,0,255,255', 'the paint covers the document');
 
@@ -749,9 +741,7 @@ suite('core / dragging a layer snaps it to a guide', async (t) => {
     const doc = t.doc(600, 400, '#ffffff', 'snapdrag');
     doc.guides = [{ axis: 'v', pos: 200 }];
     const l = createRasterLayer(600, 400, 'block');
-    const c = l.canvas.getContext('2d');
-    c.fillStyle = '#ff0000';
-    c.fillRect(150, 100, 60, 60);
+    t.fill(l, '#ff0000', 150, 100, 60, 60);
     doc.addLayer(l, { above: doc.layers[0] });
     doc.selectedLayerIds = [l.id];
     doc.activeLayerId = l.id;
@@ -905,9 +895,7 @@ suite('core / a transform handle lands where the cursor does', async (t) => {
     app.snap = false;                       // exact numbers, not snapped ones
     const doc = t.doc(600, 400, '#ffffff', 'scale-transform');
     const l = createRasterLayer(600, 400, 'block');
-    const c = l.canvas.getContext('2d');
-    c.fillStyle = '#ff0000';
-    c.fillRect(100, 100, 200, 150);         // bounds (100,100)-(300,250)
+    t.fill(l, '#ff0000', 100, 100, 200, 150); // bounds (100,100)-(300,250)
     doc.addLayer(l, { above: doc.layers[0] });
     doc.selectedLayerIds = [l.id];
     doc.activeLayerId = l.id;
@@ -1033,9 +1021,7 @@ suite('core / the other drag tools snap too', async (t) => {
     doc = t.doc(600, 400, '#ffffff', 'snap-transform');
     doc.guides = [{ axis: 'v', pos: 300 }];
     const l = createRasterLayer(600, 400, 'block');
-    const c = l.canvas.getContext('2d');
-    c.fillStyle = '#ff0000';
-    c.fillRect(100, 100, 80, 80);
+    t.fill(l, '#ff0000', 100, 100, 80, 80);
     doc.addLayer(l, { above: doc.layers[0] });
     doc.selectedLayerIds = [l.id];
     doc.activeLayerId = l.id;

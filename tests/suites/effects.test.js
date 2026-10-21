@@ -22,9 +22,7 @@ const SHAPE = [40, 40, 40, 40];
 function fxDoc(t, { size = 120, bg = '#ffffff', shape = '#ff0000', rect = SHAPE, name = 'fx' } = {}) {
   const doc = t.doc(size, size, bg, name);
   const layer = doc.addLayer(createRasterLayer(size, size, 'shape'));
-  const c = layer.canvas.getContext('2d');
-  c.fillStyle = shape;
-  c.fillRect(rect[0], rect[1], rect[2], rect[3]);
+  t.fill(layer, shape, rect[0], rect[1], rect[2], rect[3]);
   layer.styles = {};
   return { doc, layer };
 }
@@ -604,15 +602,16 @@ suite('effects / region cropping has no seam', async (t) => {
   const build = (styles, uncropped) => {
     const doc = t.doc(400, 400, '#ffffff', uncropped ? 'nocrop' : 'crop');
     const l = doc.addLayer(createRasterLayer(400, 400, 'shape'));
-    const c = l.canvas.getContext('2d');
-    c.fillStyle = '#000000';
-    c.fillRect(170, 170, 60, 60);
-    if (uncropped) {
-      c.fillRect(0, 0, 12, 12);
-      c.fillRect(388, 0, 12, 12);
-      c.fillRect(0, 388, 12, 12);
-      c.fillRect(388, 388, 12, 12);
-    }
+    t.paint(l, (c) => {
+      c.fillStyle = '#000000';
+      c.fillRect(170, 170, 60, 60);
+      if (uncropped) {
+        c.fillRect(0, 0, 12, 12);
+        c.fillRect(388, 0, 12, 12);
+        c.fillRect(0, 388, 12, 12);
+        c.fillRect(388, 388, 12, 12);
+      }
+    });
     l.styles = { [styles.id]: styles.cfg };
     const orig = renderers.get(styles.id);
     renderers.set(styles.id, (cfg, env) => { envSizes.push(env.w); return orig(cfg, env); });
@@ -710,9 +709,7 @@ suite('effects / a tiny mark must keep its effects', async (t) => {
   const ring = (mark, p) => {
     const doc = t.doc(400, 400, '#ffffff', 'tiny');
     const l = doc.addLayer(createRasterLayer(400, 400, 'mark'));
-    const c = l.canvas.getContext('2d');
-    c.fillStyle = '#000000';
-    c.fillRect(p, p, mark, mark);
+    t.fill(l, '#000000', p, p, mark, mark);
     only(l, 'stroke', {
       size: 6, position: 'outside', blendMode: 'normal', opacity: 1, fillType: 'color', color: '#00ff00',
     });
@@ -740,9 +737,7 @@ suite('effects / cropping declines for a full-canvas layer', async (t) => {
   // all four sides, right out to the canvas margin.
   const doc = t.doc(100, 100, '#ffffff', 'nocrop2');
   const layer = doc.addLayer(createRasterLayer(100, 100, 'big'));
-  const c = layer.canvas.getContext('2d');
-  c.fillStyle = '#ff0000';
-  c.fillRect(5, 5, 90, 90);
+  t.fill(layer, '#ff0000', 5, 5, 90, 90);
   only(layer, 'stroke', {
     size: 3, position: 'outside', blendMode: 'normal', opacity: 1, fillType: 'color', color: '#000000',
   });

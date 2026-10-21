@@ -1,10 +1,11 @@
 import { PikaDocument } from './document.js';
-import { Layer, LayerType, createRasterLayer, setSmartSourceCloner } from './layer.js';
+import { Layer, LayerType, createRasterLayer, setSmartSourceCloner, checkPixelAllocation, translateLayerGeometry } from './layer.js';
 import { app } from './app.js';
 import { t } from '../i18n.js';
 import { uid, createCanvas, ctx2d, ctx2dRead, imageDataToCanvas, download } from './util.js';
 import { compositeDocument, setLayerPreview } from '../render/compositor.js';
 import { getFilter, runFilter } from '../filters/registry.js';
+import { hasStyles, effectReach } from '../effects/styles.js';
 
 /**
  * Smart Objects — genuinely non-destructive embedded documents.
@@ -547,7 +548,9 @@ function documentFromImage(image, name) {
   const h = Math.max(1, image.naturalHeight || image.height || 1);
   const d = new PikaDocument({ width: w, height: h, name: name || 'Contents' });
   const l = createRasterLayer(w, h, 'Layer 1');
-  ctx2d(l.canvas).drawImage(image, 0, 0, w, h);
+  const canvas = createCanvas(w, h);
+  ctx2d(canvas).drawImage(image, 0, 0, w, h);
+  l.setPixelSource(canvas, 0, 0, d);
   d.layers = [l];
   d.activeLayerId = l.id;
   d.selectedLayerIds = [l.id];
@@ -672,7 +675,7 @@ function gridSteps(mapFn) {
  *
  * @returns {HTMLCanvasElement}
  */
-export function composeSmartCanvas(s, width, height, layer = null, cacheHolder = null) {
+export function composeSmartCanvas(s, width, height, layer = null, cacheHolder = null, origin = { x: 0, y: 0 }) {
   const src = smartSourcePixels(s, layer, cacheHolder);
   const t = s.transform || {};
   const matrix = validMatrix(t.matrix) ? t.matrix : IDENTITY_MATRIX;
@@ -689,7 +692,7 @@ export function composeSmartCanvas(s, width, height, layer = null, cacheHolder =
   ctx.imageSmoothingQuality = 'high';
 
   if (!warp && !persp[0] && !persp[1]) {
-    ctx.setTransform(a, b, c, d, e, f);
+    ctx.setTransform(a, b, c, d, e - origin.x, f - origin.y);
     if (pre.px !== 1 || pre.py !== 1) ctx.scale(1 / pre.px, 1 / pre.py);
     ctx.drawImage(pre.canvas, 0, 0);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -707,7 +710,10 @@ export function composeSmartCanvas(s, width, height, layer = null, cacheHolder =
     }
     : (u, v) => applyMatrix3(H, u * sw, v * sh);
   const box = { x: 0, y: 0, width: pre.canvas.width, height: pre.canvas.height };
-  drawMappedGrid(ctx, pre.canvas, box, gridSteps(map), map);
+  drawMappedGrid(ctx, pre.canvas, box, gridSteps(map), (u, v) => {
+    const p = map(u, v);
+    return { x: p.x - origin.x, y: p.y - origin.y };
+  });
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   return out;
 }
@@ -726,10 +732,26 @@ export function renderSmartObject(layer, doc) {
     app.toast('That layer has no Smart Object contents.', 'error');
     return null;
   }
-  const cv = composeSmartCanvas(layer.smart, doc.width, doc.height, layer, layer);
-  layer.canvas = cv;
+  const s = layer.smart;
+  const matrix = toMatrix3(getSmartTransform(layer), getSmartPerspective(layer));
+  const points = s.transform?.warp ? s.transform.warp.flat() : [
+    { x: 0, y: 0 }, { x: s.sourceWidth, y: 0 },
+    { x: s.sourceWidth, y: s.sourceHeight }, { x: 0, y: s.sourceHeight },
+  ];
+  const divisors = points.map((p) => matrix[6] * p.x + matrix[7] * p.y + matrix[8]);
+  if (Math.min(...divisors) <= 0 && Math.max(...divisors) >= 0) throw new Error('智能对象变换越过无限远边界，已停止渲染');
+  const mapped = points.map((p) => applyMatrix3(matrix, p.x, p.y));
+  const x = Math.floor(Math.min(...mapped.map((p) => p.x)));
+  const y = Math.floor(Math.min(...mapped.map((p) => p.y)));
+  const width = Math.max(1, Math.ceil(Math.max(...mapped.map((p) => p.x))) - x);
+  const height = Math.max(1, Math.ceil(Math.max(...mapped.map((p) => p.y))) - y);
+  checkPixelAllocation(width, height, s.sourceWidth * s.sourceHeight + doc.width * doc.height, (app.memoryLimitMB || 512) * 1048576);
+  const cv = composeSmartCanvas(s, width, height, layer, layer, { x, y });
+  const projection = createCanvas(doc.width, doc.height);
+  ctx2d(projection).drawImage(cv, x, y);
+  layer.setPixelSource(cv, x, y, doc);
   layer.thumbDirty = true;
-  return cv;
+  return projection;
 }
 
 /** Drop the cached source pixels — call after editing `smart.source` in place. */
@@ -786,8 +808,25 @@ export function createSmartObject(doc, layers) {
   const index = loc.index;
   const name = ordered.length === 1 ? anchor.name : 'Smart Object';
 
+  let x = 0, y = 0, right = doc.width, bottom = doc.height;
+  const measure = (layers, parentReach = 0) => {
+    for (const layer of layers) {
+      const bounds = layer.contentBounds();
+      const reach = parentReach + (hasStyles(layer) ? effectReach(layer.styles) : 0);
+      if (bounds) {
+        x = Math.min(x, bounds.x - reach); y = Math.min(y, bounds.y - reach);
+        right = Math.max(right, bounds.x + bounds.width + reach);
+        bottom = Math.max(bottom, bounds.y + bounds.height + reach);
+      }
+      if (layer.children) measure(layer.children, reach);
+    }
+  };
+  measure(ordered);
+  const width = right - x, height = bottom - y;
+  checkPixelAllocation(width, height, width * height * 2, (app.memoryLimitMB || 512) * 1048576);
+
   const source = new PikaDocument({
-    width: doc.width, height: doc.height, name, resolution: doc.resolution,
+    width, height, name, resolution: doc.resolution,
   });
   source.colorMode = doc.colorMode;
   source.layers = ordered.map((l) => {
@@ -798,23 +837,32 @@ export function createSmartObject(doc, layers) {
     c.locked = { all: false, pixels: false, position: false, transparency: false };
     return c;
   });
+  for (const layer of source.flatLayers()) {
+    layer.setDocumentSize(width, height);
+    if (isSmartLayer(layer)) {
+      const matrix = getSmartTransform(layer);
+      matrix[4] -= x; matrix[5] -= y;
+      setSmartTransform(source, layer, matrix, { commit: false });
+    } else layer.translatePixels(-x, -y, source);
+    layer.translateMask(-x, -y, source);
+    translateLayerGeometry(layer, -x, -y);
+  }
   source.activeLayerId = source.layers[0].id;
   source.selectedLayerIds = [source.activeLayerId];
   source.history.clear('Smart Object');
-
-  for (const l of ordered) doc.removeLayer(l);
 
   const smart = new Layer({ type: LayerType.SMART, name });
   smart.smart = {
     source,
     linkId: newLinkId(),
-    sourceWidth: doc.width,
-    sourceHeight: doc.height,
+    sourceWidth: width,
+    sourceHeight: height,
     sourceVersion: 1,
-    transform: { matrix: IDENTITY_MATRIX.slice() },
+    transform: { matrix: [1, 0, 0, 1, x, y] },
     filters: [],
   };
   renderSmartObject(smart, doc);
+  for (const l of ordered) doc.removeLayer(l);
 
   const target = parent ? parent.children : doc.layers;
   doc.addLayer(smart, { parent, index: Math.min(index, target.length) });
@@ -928,8 +976,14 @@ export function setSmartTransform(doc, layer, matrix, opts = {}) {
       : null;
   }
   if (commit) doc.beginEdit(layer);
+  const previous = layer.smart;
   setPayload(layer, { transform: { matrix: matrix.slice(), perspective, warp } });
-  renderSmartObject(layer, doc);
+  try {
+    renderSmartObject(layer, doc);
+  } catch (error) {
+    layer.smart = previous;
+    throw error;
+  }
   if (commit) doc.commit(label);
   else doc.touch('smart-transform');
   return layer.smart.transform.matrix;

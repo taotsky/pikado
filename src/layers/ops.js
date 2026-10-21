@@ -1,6 +1,6 @@
 import { Layer, LayerType, createRasterLayer, createGroupLayer, createAdjustmentLayer } from '../core/layer.js';
 import { createCanvas, cloneCanvas } from '../core/util.js';
-import { compositeDocument, flattenLayers, getComposite } from '../render/compositor.js';
+import { compositeDocument, flattenLayers, flattenCompleteLayers, getComposite } from '../render/compositor.js';
 import { rasterizeTextLayer } from '../text/text-render.js';
 import { rasterizeShapeLayer } from '../vector/path.js';
 import { defaultParams } from '../adjustments/registry.js';
@@ -117,7 +117,7 @@ function flattenAsBase(doc, layers, bottom) {
   const saved = bottom.blendMode;
   bottom.blendMode = 'normal';
   try {
-    return flattenLayers(doc, layers);
+    return flattenCompleteLayers(doc, layers, (app.memoryLimitMB || 512) * 1048576);
   } finally {
     bottom.blendMode = saved;
   }
@@ -137,7 +137,7 @@ function flattenRaw(doc, layer) {
   layer.opacity = 1;
   layer.blendMode = 'normal';
   try {
-    return flattenLayers(doc, [layer]);
+    return flattenCompleteLayers(doc, [layer], (app.memoryLimitMB || 512) * 1048576);
   } finally {
     layer.opacity = savedOpacity;
     layer.blendMode = savedMode;
@@ -165,11 +165,12 @@ export function mergeDown(doc, layer) {
   const nl = new Layer({
     type: LayerType.RASTER,
     name: keepName,
-    canvas: merged,
+    canvas: merged.canvas,
     isBackground: wasBackground,
     opacity: 1,
     blendMode: keepMode,
   });
+  nl.setPixelSource(merged.canvas, merged.x, merged.y, doc);
   nl.parent = loc.parent;
   loc.list.splice(loc.index, 0, nl);
   doc.activeLayerId = nl.id;
@@ -196,7 +197,8 @@ export function mergeSelected(doc) {
   let index = 0;
   if (loc) for (let i = 0; i < loc.index; i++) if (!doomed.has(loc.list[i].id)) index++;
   for (const l of list) doc.removeLayer(l);
-  const nl = new Layer({ type: LayerType.RASTER, name, canvas: merged, blendMode: keepMode });
+  const nl = new Layer({ type: LayerType.RASTER, name, canvas: merged.canvas, blendMode: keepMode });
+  nl.setPixelSource(merged.canvas, merged.x, merged.y, doc);
   doc.addLayer(nl, { index, parent });
   doc.commit('Merge Layers');
   return nl;
@@ -205,7 +207,7 @@ export function mergeSelected(doc) {
 export function mergeVisible(doc) {
   const visible = doc.flatLayers().filter((l) => l.visible && !l.parent);
   if (!visible.length) return;
-  const merged = compositeDocument(doc);
+  const merged = flattenCompleteLayers(doc, visible, (app.memoryLimitMB || 512) * 1048576);
   const bottom = visible[visible.length - 1];
   const keepBackground = bottom.isBackground;
   // Land where the bottom-most visible layer was, not at the very bottom —
@@ -217,7 +219,8 @@ export function mergeVisible(doc) {
     if (!doomed.has(l.id)) index++;
   }
   for (const l of [...visible]) doc.removeLayer(l);
-  const nl = new Layer({ type: LayerType.RASTER, name: keepBackground ? 'Background' : 'Merged', canvas: merged, isBackground: keepBackground });
+  const nl = new Layer({ type: LayerType.RASTER, name: keepBackground ? 'Background' : 'Merged', canvas: merged.canvas, isBackground: keepBackground });
+  nl.setPixelSource(merged.canvas, merged.x, merged.y, doc);
   doc.layers.splice(index, 0, nl);
   doc.activeLayerId = nl.id;
   doc.selectedLayerIds = [nl.id];
@@ -277,18 +280,18 @@ export function rasterizeLayer(doc, layer) {
   if (!l) return;
   doc.beginEdit(l);
   if (l.type === LayerType.TEXT) {
-    l.canvas = rasterizeTextLayer(l, doc);
+    rasterizeTextLayer(l, doc);
     l.text = null;
     l.type = LayerType.RASTER;
   } else if (l.type === LayerType.SHAPE) {
-    l.canvas = rasterizeShapeLayer(l, doc);
+    rasterizeShapeLayer(l, doc);
     l.shape = null;
     l.type = LayerType.RASTER;
   } else if (l.type === LayerType.SMART) {
     // Bake the *current* smart render (contents + smart filters + transform)
     // rather than whatever stale cache happens to sit in `l.canvas`.
-    if (isSmartLayer(l)) l.canvas = renderSmartObject(l, doc) || l.canvas;
-    if (!l.canvas) l.canvas = createCanvas(doc.width, doc.height);
+    if (isSmartLayer(l)) renderSmartObject(l, doc);
+    if (!l.getPixelSource()) l.setPixelSource(createCanvas(doc.width, doc.height), 0, 0, doc);
     l._smartCache = null;
     l.smart = null;
     l.type = LayerType.RASTER;
@@ -297,7 +300,8 @@ export function rasterizeLayer(doc, layer) {
     const merged = flattenRaw(doc, l);
     const loc = doc.locate(l);
     loc.list.splice(loc.index, 1);
-    const nl = new Layer({ type: LayerType.RASTER, name: l.name, canvas: merged, opacity: l.opacity, blendMode: l.blendMode === 'pass-through' ? 'normal' : l.blendMode });
+    const nl = new Layer({ type: LayerType.RASTER, name: l.name, canvas: merged.canvas, opacity: l.opacity, blendMode: l.blendMode === 'pass-through' ? 'normal' : l.blendMode });
+    nl.setPixelSource(merged.canvas, merged.x, merged.y, doc);
     nl.parent = loc.parent;
     loc.list.splice(loc.index, 0, nl);
     doc.activeLayerId = nl.id;
@@ -318,7 +322,7 @@ export function rasterizeLayerStyle(doc, layer) {
   // Raw, because the layer keeps its own opacity and blend mode afterwards.
   const only = flattenRaw(doc, l);
   doc.beginEdit(l);
-  l.canvas = only;
+  l.setPixelSource(only.canvas, only.x, only.y, doc);
   l.styles = null;
   doc.commit('Rasterize Layer Style');
 }
@@ -358,7 +362,7 @@ export function addLayerMask(doc, layer, kind = 'reveal-all') {
     c.fillStyle = '#fff';
     c.fillRect(0, 0, doc.width, doc.height);
   }
-  l.mask = mask;
+  l.setMaskSource(mask, 0, 0, 0, doc);
   l.maskEnabled = true;
   l.editingMask = true;
   l.touchMask();
@@ -376,15 +380,18 @@ export function deleteLayerMask(doc, layer) {
 
 export function applyLayerMask(doc, layer) {
   const l = layer || doc.activeLayer();
-  if (!l || !l.mask || !l.canvas) return;
+  if (!l || !l.getMaskSource() || !l.getPixelSource()) return;
   doc.beginEdit(l);
-  const ma = l.maskAlphaCanvas();
-  const out = createCanvas(doc.width, doc.height);
+  const source = l.getPixelSource();
+  const maskLayer = Object.assign(Object.create(Object.getPrototypeOf(l)), l);
+  maskLayer.translateMask(-source.x, -source.y, { width: source.canvas.width, height: source.canvas.height });
+  const ma = maskLayer.maskAlphaCanvas();
+  const out = createCanvas(source.canvas.width, source.canvas.height);
   const c = out.getContext('2d');
-  c.drawImage(l.canvas, 0, 0);
+  c.drawImage(source.canvas, 0, 0);
   c.globalCompositeOperation = 'destination-in';
   c.drawImage(ma, 0, 0);
-  l.canvas = out;
+  l.setPixelSource(out, source.x, source.y, doc);
   l.removeMask();
   doc.commit('Apply Layer Mask');
 }
@@ -408,7 +415,7 @@ export function addAdjustmentLayer(doc, kind, params, name) {
     c.fillStyle = '#000';
     c.fillRect(0, 0, doc.width, doc.height);
     c.drawImage(doc.selection.toCanvas(), 0, 0);
-    l.mask = mask;
+    l.setMaskSource(mask, 0, 0, 0, doc);
     l.touchMask();
   } else {
     l.addMask(doc.width, doc.height, '#ffffff');
@@ -422,7 +429,7 @@ export function addAdjustmentLayer(doc, kind, params, name) {
 export function addFillLayer(doc, kind, params) {
   const l = new Layer({ type: LayerType.SHAPE, name: kind === 'solid' ? 'Color Fill' : kind === 'gradient' ? 'Gradient Fill' : 'Pattern Fill' });
   l.shape = { kind: 'fill', fillKind: kind, ...params, subpaths: [{ closed: true, points: rectPoints(doc.width, doc.height) }] };
-  l.canvas = rasterizeShapeLayer(l, doc);
+  rasterizeShapeLayer(l, doc);
   l.addMask(doc.width, doc.height, '#ffffff');
   doc.addLayer(l);
   doc.commit('New Fill Layer');
@@ -473,7 +480,7 @@ export function convertLayerToBackground(doc, layer) {
   c.fillRect(0, 0, doc.width, doc.height);
   c.drawImage(l.canvas, 0, 0);
   doc.beginEdit(l);
-  l.canvas = flat;
+  l.setPixelSource(flat, 0, 0, doc);
   l.isBackground = true;
   l.name = 'Background';
   l.opacity = 1;

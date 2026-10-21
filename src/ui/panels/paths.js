@@ -1,4 +1,5 @@
 import { t as translateUI } from '../../i18n.js';
+import { commitPaintSurface } from '../../edit/pixels.js';
 import { registerPanel } from '../panel-host.js';
 import { app } from '../../core/app.js';
 import { el, uid, createCanvas } from '../../core/util.js';
@@ -300,7 +301,9 @@ registerPanel({
         tc.globalCompositeOperation = 'source-over';
       }
       d.beginEdit(layer);
-      layer.paintTarget().getContext('2d').drawImage(tmp, 0, 0);
+      const target = layer.paintTarget();
+      target.getContext('2d').drawImage(tmp, 0, 0);
+      commitPaintSurface(d, layer, target, d.selection.active ? d.selection.bounds() : null);
       d.commit('Fill Path');
     };
 
@@ -336,6 +339,8 @@ registerPanel({
         return;
       }
       stroke.flush();
+      if (!stroke.dirty) return;
+      commitPaintSurface(d, layer, stroke.target, stroke.dirty);
       d.commit('Stroke Path');
     };
 

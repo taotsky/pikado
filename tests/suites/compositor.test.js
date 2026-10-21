@@ -129,7 +129,7 @@ suite('compositor / all 27 blend modes, exact', async (t) => {
   // A transparent source must leave the backdrop untouched on the CPU path too.
   const clear = doc.findLayer(topId);
   clear.blendMode = 'vivid-light';
-  clear.canvas.getContext('2d').clearRect(0, 0, 24, 16);
+  t.paint(clear, (c) => c.clearRect(0, 0, 24, 16));
   t.fill(doc.findLayer(baseId), A_BASE);
   t.eq(t.px(compositeDocument(doc), 12, 8), '170,85,0,255',
     'a fully transparent source leaves the backdrop exactly as it was');
@@ -164,9 +164,7 @@ suite('compositor / layer opacity vs fill opacity', async (t) => {
   // Now the part that actually distinguishes them: effects.
   const fx = t.doc(60, 60, '#ffffff', 'fillfx');
   const shapeId = fx.addLayer(createRasterLayer(60, 60, 'shape')).id;
-  const sc = fx.findLayer(shapeId).canvas.getContext('2d');
-  sc.fillStyle = '#000000';
-  sc.fillRect(20, 20, 20, 20);
+  t.fill(fx.findLayer(shapeId), '#000000', 20, 20, 20, 20);
 
   const shape = fx.findLayer(shapeId);
   shape.fillOpacity = 0;
@@ -194,11 +192,11 @@ suite('compositor / layer masks', async (t) => {
   t.fill(top, '#ff0000');
 
   top.addMask(60, 40, '#ffffff');
-  const mc = top.mask.getContext('2d');
-  mc.fillStyle = '#000000'; mc.fillRect(0, 0, 20, 40);
-  mc.fillStyle = '#ffffff'; mc.fillRect(20, 0, 20, 40);
-  mc.fillStyle = '#808080'; mc.fillRect(40, 0, 20, 40);
-  top.touchMask();
+  t.paintMask(top, (mc) => {
+    mc.fillStyle = '#000000'; mc.fillRect(0, 0, 20, 40);
+    mc.fillStyle = '#ffffff'; mc.fillRect(20, 0, 20, 40);
+    mc.fillStyle = '#808080'; mc.fillRect(40, 0, 20, 40);
+  });
 
   let cv = compositeDocument(doc);
   t.eq(t.px(cv, 10, 20), '255,255,255,255', 'a black mask region hides the layer entirely');
@@ -228,9 +226,7 @@ suite('compositor / clipping masks', async (t) => {
   // A clipped layer is limited to the base's alpha.
   const doc = t.doc(80, 60, '#ffffff', 'clip');
   const base = doc.addLayer(createRasterLayer(80, 60, 'base'));
-  const bc = base.canvas.getContext('2d');
-  bc.fillStyle = '#ff0000';
-  bc.fillRect(10, 10, 40, 30);
+  t.fill(base, '#ff0000', 10, 10, 40, 30);
   const clip = doc.addLayer(createRasterLayer(80, 60, 'clip'));
   t.fill(clip, '#0000ff');
 
@@ -244,9 +240,7 @@ suite('compositor / clipping masks', async (t) => {
   // The BASE's blend mode governs the whole clip group.
   const d2 = t.doc(80, 60, '#aaaaaa', 'clipblend');
   const b2 = d2.addLayer(createRasterLayer(80, 60, 'base'));
-  const b2c = b2.canvas.getContext('2d');
-  b2c.fillStyle = '#ffffff';
-  b2c.fillRect(10, 10, 40, 30);
+  t.fill(b2, '#ffffff', 10, 10, 40, 30);
   b2.blendMode = 'multiply';
   const c2 = d2.addLayer(createRasterLayer(80, 60, 'clip'));
   t.fill(c2, '#999999');
@@ -263,9 +257,7 @@ suite('compositor / clipping masks', async (t) => {
   // A run of clipped layers all clip to the same base.
   const d3 = t.doc(80, 60, '#ffffff', 'cliprun');
   const b3 = d3.addLayer(createRasterLayer(80, 60, 'base'));
-  const b3c = b3.canvas.getContext('2d');
-  b3c.fillStyle = '#ff0000';
-  b3c.fillRect(10, 10, 40, 30);
+  t.fill(b3, '#ff0000', 10, 10, 40, 30);
   const c3a = d3.addLayer(createRasterLayer(80, 60, 'clipA'));
   t.fill(c3a, '#00ff00', 0, 0, 40, 60);
   const c3b = d3.addLayer(createRasterLayer(80, 60, 'clipB'));
@@ -303,10 +295,10 @@ suite('compositor / groups', async (t) => {
 
   // A group mask applies to the whole group.
   g.addMask(60, 60, '#ffffff');
-  const gm = g.mask.getContext('2d');
-  gm.fillStyle = '#000000';
-  gm.fillRect(0, 0, 20, 60);
-  g.touchMask();
+  t.paintMask(g, (gm) => {
+    gm.fillStyle = '#000000';
+    gm.fillRect(0, 0, 20, 60);
+  });
   cv = compositeDocument(doc);
   t.eq(t.px(cv, 5, 30), '255,255,255,255', 'the group mask hides the top child');
   t.eq(t.px(cv, 15, 30), '255,255,255,255', 'and the bottom child under the same mask pixels');
@@ -363,10 +355,10 @@ suite('compositor / adjustment layers', async (t) => {
   adj.visible = true;
 
   adj.addMask(60, 40, '#ffffff');
-  const am = adj.mask.getContext('2d');
-  am.fillStyle = '#000000';
-  am.fillRect(0, 0, 30, 40);
-  adj.touchMask();
+  t.paintMask(adj, (am) => {
+    am.fillStyle = '#000000';
+    am.fillRect(0, 0, 30, 40);
+  });
   cv = compositeDocument(doc);
   t.eq(t.px(cv, 10, 20), '0,255,0,255', 'a masked-out adjustment leaves those pixels alone');
   t.eq(t.px(cv, 40, 20), '85,170,255,255', 'while the unmasked half is still adjusted');
@@ -375,9 +367,7 @@ suite('compositor / adjustment layers', async (t) => {
   // Clipped: the adjustment may only touch its base, not the backdrop.
   const d2 = t.doc(60, 40, '#aa5500', 'adjclip');
   const base = d2.addLayer(createRasterLayer(60, 40, 'base'));
-  const bc = base.canvas.getContext('2d');
-  bc.fillStyle = '#00ff00';
-  bc.fillRect(10, 10, 20, 20);
+  t.fill(base, '#00ff00', 10, 10, 20, 20);
   const adj2 = d2.addLayer(createAdjustmentLayer('invert', {}, 60, 40, 'Invert'));
   t.eq(t.px(compositeDocument(d2), 50, 30), '85,170,255,255',
     'precondition: unclipped, the adjustment inverts the whole backdrop');

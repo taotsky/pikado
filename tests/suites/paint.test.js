@@ -2,10 +2,15 @@ import { suite } from '../harness.js';
 import { makeTip, brushFromOptions, DEFAULT_BRUSH, PaintStroke, EffectStroke } from '/src/paint/brush-engine.js';
 import { createRasterLayer } from '/src/core/layer.js';
 import { Selection } from '/src/core/selection.js';
+import { commitPaintSurface } from '/src/edit/pixels.js';
 
 /* ------------------------------------------------------------------ */
 /* helpers                                                             */
 /* ------------------------------------------------------------------ */
+
+function commitStroke(doc, layer, stroke) {
+  if (stroke.dirty) commitPaintSurface(doc, layer, stroke.target, stroke.dirty);
+}
 
 /** Alpha byte of one pixel. */
 function alphaAt(canvas, x, y) {
@@ -135,6 +140,7 @@ suite('paint / PaintStroke lays colour on the path only', async (t) => {
   s.move(80, 50, 1);
   s.end();
   s.flush();
+  commitStroke(doc, layer, s);
 
   t.eq(t.px(layer.canvas, 50, 50), '255,0,0,255', 'the stroke centre is the requested colour at full alpha');
   t.eq(t.px(layer.canvas, 20, 50), '255,0,0,255', 'the very first dab landed at the start point');
@@ -161,6 +167,7 @@ suite('paint / PaintStroke lays colour on the path only', async (t) => {
   s2.begin(50, 50, 1);
   s2.end();
   s2.flush();
+  commitStroke(doc, l2, s2);
   t.eq(t.px(l2.canvas, 50, 50), '0,0,255,255', 'an {r,g,b,a} colour object is accepted');
 });
 
@@ -179,10 +186,12 @@ suite('paint / opacity caps a stroke, flow builds within it', async (t) => {
   });
   cap.stamp(30, 30, 1);
   cap.flush();
+  commitStroke(doc, capL, cap);
   const a1 = alphaAt(capL.canvas, 30, 30);
   t.close(a1, 128, 2, 'one dab at opacity 0.5 / flow 1 is 50% alpha (128)');
   for (let i = 0; i < 8; i++) cap.stamp(30, 30, 1);
   cap.flush();
+  commitStroke(doc, capL, cap);
   const a9 = alphaAt(capL.canvas, 30, 30);
   t.eq(a9, a1, 'nine overlapping dabs give the identical alpha — opacity caps the whole stroke');
   t.lt(a9, 140, 'a self-overlapping opacity-0.5 stroke never exceeds 50% coverage');
@@ -201,6 +210,7 @@ suite('paint / opacity caps a stroke, flow builds within it', async (t) => {
   bs.move(50, 30, 1);
   bs.end();
   bs.flush();
+  commitStroke(doc, back, bs);
   t.gt(bs.dabCount, 100, `the path really did overlap itself (${bs.dabCount} dabs)`);
   t.close(alphaAt(back.canvas, 30, 30), 128, 3, 'painting back and forth still stops at 50% alpha');
 
@@ -215,6 +225,7 @@ suite('paint / opacity caps a stroke, flow builds within it', async (t) => {
   for (let i = 0; i < 8; i++) {
     build.stamp(30, 30, 1);
     build.flush();
+    commitStroke(doc, buildL, build);
     seq.push(alphaAt(buildL.canvas, 30, 30));
   }
   t.close(seq[0], 64, 2, 'one dab at flow 0.25 is 25% alpha (255 * 0.25 = 64)');
@@ -232,6 +243,7 @@ suite('paint / opacity caps a stroke, flow builds within it', async (t) => {
   });
   solid.stamp(30, 30, 1);
   solid.flush();
+  commitStroke(doc, solidL, solid);
   t.eq(alphaAt(solidL.canvas, 30, 30), 255, 'flow 1 / opacity 1 is fully opaque in one dab');
 });
 
@@ -251,6 +263,7 @@ suite('paint / erase, lockTransparency and selection clipping', async (t) => {
   });
   er.stamp(50, 50, 1);
   er.flush();
+  commitStroke(doc, eL, er);
   t.eq(t.px(eL.canvas, 50, 50), '0,0,0,0', 'mode "erase" removes pixels entirely');
   t.eq(t.px(eL.canvas, 90, 50), '255,0,0,255', 'erasing leaves everything outside the dab alone');
 
@@ -266,6 +279,7 @@ suite('paint / erase, lockTransparency and selection clipping', async (t) => {
   lock.move(80, 50, 1);
   lock.end();
   lock.flush();
+  commitStroke(doc, lockL, lock);
   t.eq(t.px(lockL.canvas, 25, 50), '0,0,255,255', 'lockTransparency lets paint land on existing pixels');
   t.eq(t.px(lockL.canvas, 75, 50), '0,0,0,0', 'lockTransparency keeps paint off transparent pixels');
 
@@ -281,6 +295,7 @@ suite('paint / erase, lockTransparency and selection clipping', async (t) => {
   free.move(80, 50, 1);
   free.end();
   free.flush();
+  commitStroke(doc, freeL, free);
   t.eq(t.px(freeL.canvas, 75, 50), '0,0,255,255', 'control: without the lock the same stroke reaches x=75');
 
   /* selection clipping */
@@ -295,6 +310,7 @@ suite('paint / erase, lockTransparency and selection clipping', async (t) => {
   sel.move(80, 50, 1);
   sel.end();
   sel.flush();
+  commitStroke(doc, selL, sel);
   t.eq(t.px(selL.canvas, 25, 50), '0,255,0,255', 'paint lands inside the selection');
   t.eq(t.px(selL.canvas, 75, 50), '0,0,0,0', 'an active selection confines the stroke');
   t.eq(t.px(selL.canvas, 49, 50), '0,255,0,255', 'right up to the selection edge');
@@ -310,6 +326,7 @@ suite('paint / erase, lockTransparency and selection clipping', async (t) => {
   ign.move(80, 50, 1);
   ign.end();
   ign.flush();
+  commitStroke(doc, ignL, ign);
   t.eq(t.px(ignL.canvas, 75, 50), '0,255,0,255', 'selectionClip:false ignores the selection');
 });
 
@@ -331,6 +348,7 @@ suite('paint / spacing controls the dab count', async (t) => {
     s.move(90, 50, 1);
     s.end();
     s.flush();
+    commitStroke(doc, l, s);
     return { dabs: s.dabCount, inked: t.inked(l.canvas) };
   }
 
@@ -374,6 +392,7 @@ suite('paint / EffectStroke blends the op through the tip', async (t) => {
     },
   });
   st.stamp(50, 50, 1);
+  commitStroke(doc, layer, st);
 
   t.eq(seen.length, 1, 'the op ran once per dab');
   t.eq(seen[0].first, [255, 0, 0, 255], 'the op receives the pixels that were already under the dab');
@@ -408,6 +427,7 @@ suite('paint / EffectStroke blends the op through the tip', async (t) => {
     },
   });
   st2.stamp(50, 50, 1);
+  commitStroke(doc, l2, st2);
   t.eq(t.px(l2.canvas, 50, 50), '0,0,255,255', 'an op that mutates in place and returns void still applies');
   t.eq(st2.dabCount, 1, 'the dab counter advanced');
 });

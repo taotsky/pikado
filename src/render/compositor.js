@@ -1,7 +1,7 @@
-import { LayerType } from '../core/layer.js';
+import { LayerType, checkPixelAllocation } from '../core/layer.js';
 import { gcoFor, isNativeBlend, blendCPU } from '../core/blend.js';
 import { createCanvas, cloneCanvas, ctx2d, ctx2dRead } from '../core/util.js';
-import { applyLayerStyles, belowEffectResults, hasStyles } from '../effects/styles.js';
+import { applyLayerStyles, belowEffectResults, hasStyles, effectReach } from '../effects/styles.js';
 import { blendOnGPU } from './gpu-blend.js';
 import { applyAdjustment } from '../adjustments/registry.js';
 
@@ -15,6 +15,27 @@ import { applyAdjustment } from '../adjustments/registry.js';
 
 /** Modules can register a live preview canvas that replaces a layer's pixels. */
 const previewOverrides = new Map();
+const maskPreviews = new Map();
+
+export function setLayerMaskPreview(layerId, canvas) {
+  if (canvas) maskPreviews.set(layerId, canvas);
+  else maskPreviews.delete(layerId);
+}
+
+function maskAlpha(layer) {
+  const preview = maskPreviews.get(layer.id);
+  if (!preview) return layer.maskAlphaCanvas();
+  const out = cloneCanvas(preview);
+  const ctx = ctx2dRead(out);
+  const image = ctx.getImageData(0, 0, out.width, out.height);
+  for (let i = 0; i < image.data.length; i += 4) {
+    image.data[i + 3] *= (image.data[i] * 0.299 + image.data[i + 1] * 0.587 + image.data[i + 2] * 0.114) / 255;
+    if (layer.maskInverted) image.data[i + 3] = 255 - image.data[i + 3];
+    image.data[i] = image.data[i + 1] = image.data[i + 2] = 0;
+  }
+  ctx.putImageData(image, 0, 0);
+  return out;
+}
 
 export function setLayerPreview(layerId, canvas) {
   if (canvas) previewOverrides.set(layerId, canvas);
@@ -23,6 +44,7 @@ export function setLayerPreview(layerId, canvas) {
 
 export function clearLayerPreviews() {
   previewOverrides.clear();
+  maskPreviews.clear();
 }
 
 export function getLayerPreview(layerId) {
@@ -280,7 +302,7 @@ function layerPixels(layer, doc, opts) {
   if (!src) return null;
 
   const needsStyles = !opts.ignoreEffects && hasStyles(layer);
-  const needsMask = layer.mask && layer.maskEnabled;
+  const needsMask = layer.getMaskSource() && layer.maskEnabled;
   const fill = layer.fillOpacity == null ? 1 : layer.fillOpacity;
 
   if (!needsStyles && !needsMask && fill >= 1) return src;
@@ -301,7 +323,7 @@ function layerPixels(layer, doc, opts) {
   }
 
   if (needsMask) {
-    const ma = layer.maskAlphaCanvas();
+    const ma = maskAlpha(layer);
     if (ma) {
       c.globalCompositeOperation = 'destination-in';
       c.drawImage(ma, 0, 0);
@@ -315,8 +337,8 @@ function groupPixels(group, doc, opts) {
   const temp = createCanvas(doc.width, doc.height);
   const tctx = temp.getContext('2d');
   compositeList(group.children || [], tctx, doc, opts);
-  if (group.mask && group.maskEnabled) {
-    const ma = group.maskAlphaCanvas();
+  if (group.getMaskSource() && group.maskEnabled) {
+    const ma = maskAlpha(group);
     if (ma) {
       tctx.globalCompositeOperation = 'destination-in';
       tctx.drawImage(ma, 0, 0);
@@ -344,7 +366,7 @@ function drawBelowEffects(layer, ctx, doc, opts) {
   if (!list.length) return;
 
   const op = effectiveOpacity(layer);
-  const ma = layer.mask && layer.maskEnabled ? layer.maskAlphaCanvas() : null;
+  const ma = layer.getMaskSource() && layer.maskEnabled ? maskAlpha(layer) : null;
   for (const e of list) {
     let px = e.canvas;
     if (ma) {
@@ -368,7 +390,7 @@ function drawLayer(layer, ctx, doc, opts, extra = {}) {
 
   if (layer.type === LayerType.GROUP) {
     const passThrough = layer.blendMode === 'pass-through';
-    if (passThrough && effectiveOpacity(layer) >= 1 && !(layer.mask && layer.maskEnabled)) {
+    if (passThrough && effectiveOpacity(layer) >= 1 && !(layer.getMaskSource() && layer.maskEnabled)) {
       // True pass-through: children blend directly with the existing backdrop.
       compositeList(layer.children || [], ctx, doc, opts);
       return;
@@ -392,10 +414,11 @@ function drawLayer(layer, ctx, doc, opts, extra = {}) {
    * The non-native blend modes cannot come here: `blendOnto` falls through to
    * WebGL or `blendCPU`, both of which read the source at destination size.
    */
-  const tile = layer.tile;
+  const tile = layer.getPixelSource();
   if (tile
+    && !previewOverrides.has(layer.id)
     && !(!opts.ignoreEffects && hasStyles(layer))
-    && !(layer.mask && layer.maskEnabled)
+    && !(layer.getMaskSource() && layer.maskEnabled)
     && (layer.fillOpacity == null || layer.fillOpacity >= 1)
     && isNativeBlend(layer.blendMode === 'pass-through' ? 'normal' : layer.blendMode)) {
     const op = effectiveOpacity(layer);
@@ -432,8 +455,8 @@ function drawAdjustmentLayer(layer, ctx, doc, extra = {}) {
   adjusted.getContext('2d').putImageData(work, 0, 0);
 
   const c = adjusted.getContext('2d');
-  if (layer.mask && layer.maskEnabled) {
-    const ma = layer.maskAlphaCanvas();
+  if (layer.getMaskSource() && layer.maskEnabled) {
+    const ma = maskAlpha(layer);
     if (ma) {
       c.globalCompositeOperation = 'destination-in';
       c.drawImage(ma, 0, 0);
@@ -493,6 +516,40 @@ export function flattenLayers(doc, layers) {
   // every branch that contains none of the requested layers.
   compositeList(pruneTree(doc.layers, ids), ctx, doc, {});
   return out;
+}
+
+/** Flatten complete layer bounds; the document viewport must not discard pixels. */
+export function flattenCompleteLayers(doc, layers, budgetBytes = 512 * 1048576) {
+  const selected = pruneTree(doc.layers, new Set(layers.map((l) => l.id)));
+  let x = Infinity, y = Infinity, right = -Infinity, bottom = -Infinity;
+  const measure = (list, parentReach = 0) => {
+    for (const layer of list) {
+      const reach = parentReach + (hasStyles(layer) ? effectReach(layer.styles) : 0);
+      if (layer.children) measure(layer.children, reach);
+      const bounds = layer.contentBounds();
+      if (!bounds) continue;
+      x = Math.min(x, bounds.x - reach);
+      y = Math.min(y, bounds.y - reach);
+      right = Math.max(right, bounds.x + bounds.width + reach);
+      bottom = Math.max(bottom, bounds.y + bounds.height + reach);
+    }
+  };
+  measure(selected);
+  if (!Number.isFinite(x)) { x = 0; y = 0; right = doc.width; bottom = doc.height; }
+  x = Math.floor(x); y = Math.floor(y);
+  const width = Math.max(1, Math.ceil(right) - x), height = Math.max(1, Math.ceil(bottom) - y);
+  checkPixelAllocation(width, height, width * height * 2, budgetBytes);
+  const viewport = Object.assign(Object.create(Object.getPrototypeOf(doc)), doc, { width, height });
+  const shift = (list) => list.map((layer) => {
+    const copy = Object.assign(Object.create(Object.getPrototypeOf(layer)), layer);
+    copy.translatePixels(-x, -y, viewport);
+    copy.translateMask(-x, -y, viewport);
+    copy.setDocumentSize(width, height);
+    if (layer.children) copy.children = shift(layer.children);
+    return copy;
+  });
+  viewport.layers = shift(selected);
+  return { canvas: compositeDocument(viewport), x, y };
 }
 
 /** Return a structural copy of the tree keeping only layers in `ids`. */

@@ -32,11 +32,11 @@ class BlurTool extends BrushToolBase {
     });
   }
 
-  makeStroke(e, doc, layer) {
+  makeStroke(e, doc, layer, target) {
     return new EffectStroke({
       doc,
       layer,
-      target: layer.paintTarget(),
+      target,
       brush: brushFromOptions(this.state, { flow: 1, spacing: 0.25 }),
       strength: this.state.strength / 100,
       op: (region, meta) => {
@@ -71,12 +71,12 @@ class SharpenTool extends BrushToolBase {
     });
   }
 
-  makeStroke(e, doc, layer) {
+  makeStroke(e, doc, layer, target) {
     const protect = this.state.protectDetail;
     return new EffectStroke({
       doc,
       layer,
-      target: layer.paintTarget(),
+      target,
       brush: brushFromOptions(this.state, { flow: 1, spacing: 0.25 }),
       strength: this.state.strength / 100,
       op: (region, meta) => {
@@ -119,7 +119,7 @@ class SmudgeTool extends BrushToolBase {
     });
   }
 
-  makeStroke(e, doc, layer) {
+  makeStroke(e, doc, layer, target) {
     const fingerPainting = this.state.fingerPainting;
     const fg = app.foreground;
 
@@ -136,7 +136,7 @@ class SmudgeTool extends BrushToolBase {
     return new EffectStroke({
       doc,
       layer,
-      target: layer.paintTarget(),
+      target,
       // A steady tip keeps the finger buffer aligned dab to dab.
       brush: brushFromOptions(this.state, { flow: 1, pressureSize: false, sizeJitter: 0, scatter: 0, spacing: 0.06 }),
       strength: this.state.strength / 100,

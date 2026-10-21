@@ -7,6 +7,8 @@ import { createCanvas, ctx2dRead, clamp } from '../core/util.js';
 import { sampleBilinear } from '../filters/registry.js';
 import { OVERLAY } from '../ui/brand.js';
 import { sep } from '../ui/canvas-menu.js';
+import { checkPixelAllocation, mapLayerGeometry } from '../core/layer.js';
+import { getSmartMatrix3, matrix3Multiply, fromMatrix3 } from '../core/smart.js';
 
 /**
  * Crop family: the rotating crop box, the perspective crop and the slice tool.
@@ -106,63 +108,15 @@ function drawHandles(ctx, pts, size = 7) {
  * Rotate + crop the whole document in one step. Mirrors `doc.crop()` but the
  * cut rectangle may be rotated around its own centre.
  */
-function rotatedCrop(doc, rect, angle) {
+function rotatedCrop(doc, rect, angle, clip = true) {
   const w = Math.max(1, Math.round(rect.width));
   const h = Math.max(1, Math.round(rect.height));
   const cx = rect.x + rect.width / 2;
   const cy = rect.y + rect.height / 2;
 
-  const cut = (src, fillWhite) => {
-    const out = createCanvas(w, h);
-    const c = out.getContext('2d');
-    if (fillWhite) {
-      c.fillStyle = '#fff';
-      c.fillRect(0, 0, w, h);
-    }
-    c.imageSmoothingEnabled = true;
-    c.imageSmoothingQuality = 'high';
-    // Source -> output: translate to the box centre, un-rotate, re-origin.
-    c.translate(w / 2, h / 2);
-    c.rotate(-angle);
-    c.translate(-cx, -cy);
-    c.drawImage(src, 0, 0);
-    return out;
-  };
-
-  const layers = doc.flatLayers();
-  doc.beginEdit(layers);
-  for (const l of layers) {
-    if (l.canvas) l.canvas = cut(l.canvas, false);
-    if (l.mask) {
-      l.mask = cut(l.mask, true);
-      l.touchMask();
-    }
-  }
-
-  const ca = Math.cos(-angle);
-  const sa = Math.sin(-angle);
-  const mapPt = (p) => {
-    const dx = p.x - cx;
-    const dy = p.y - cy;
-    return { x: dx * ca - dy * sa + w / 2, y: dx * sa + dy * ca + h / 2 };
-  };
-  for (const path of doc.paths) {
-    for (const sp of path.subpaths || []) {
-      for (const pt of sp.points || []) {
-        const a = mapPt(pt);
-        pt.x = a.x; pt.y = a.y;
-        if (pt.in) { const b = mapPt(pt.in); pt.in.x = b.x; pt.in.y = b.y; }
-        if (pt.out) { const b = mapPt(pt.out); pt.out.x = b.x; pt.out.y = b.y; }
-      }
-    }
-  }
-
-  doc.width = w;
-  doc.height = h;
-  doc.selection = new Selection(w, h);
+  const matrix = new DOMMatrix().translate(w / 2, h / 2).rotate(-angle * 180 / Math.PI).translate(-cx, -cy);
+  doc.transformAffine(matrix, w, h, { clip });
   doc.guides = doc.guides.filter((g) => (g.axis === 'v' ? g.pos < w : g.pos < h));
-  doc.invalidate();
-  doc.emit('resize');
 }
 
 /* ------------------------------------------------------------------ */
@@ -515,27 +469,9 @@ class CropTool extends Tool {
       return;
     }
 
-    if (this.state.deleteCropped === false) {
-      // "Delete Cropped Pixels" off: grow the box until it contains the whole
-      // document, so the crop only ever reframes and never discards pixels.
-      // (Layer buffers are document-sized, so anything outside the new canvas
-      // cannot be retained any other way.)
-      let l = -rect.width / 2;
-      let r = rect.width / 2;
-      let t = -rect.height / 2;
-      let b = rect.height / 2;
-      for (const [x, y] of [[0, 0], [doc.width, 0], [doc.width, doc.height], [0, doc.height]]) {
-        const p = this.toLocal(x, y, rect);
-        l = Math.min(l, p.x); r = Math.max(r, p.x);
-        t = Math.min(t, p.y); b = Math.max(b, p.y);
-      }
-      const c = this.toDocPt((l + r) / 2, (t + b) / 2, rect);
-      rect = { x: c.x - (r - l) / 2, y: c.y - (b - t) / 2, width: r - l, height: b - t };
-    }
-
     let noChange = false;
     if (Math.abs(angle) > 1e-4) {
-      rotatedCrop(doc, rect, angle);
+      rotatedCrop(doc, rect, angle, this.state.deleteCropped !== false);
     } else {
       rect = {
         x: Math.round(rect.x),
@@ -543,17 +479,11 @@ class CropTool extends Tool {
         width: Math.max(1, Math.round(rect.width)),
         height: Math.max(1, Math.round(rect.height)),
       };
-      const dx = Math.max(Math.max(0, -rect.x), Math.max(0, rect.x + rect.width - doc.width));
-      const dy = Math.max(Math.max(0, -rect.y), Math.max(0, rect.y + rect.height - doc.height));
-      if (dx > 0 || dy > 0) {
-        // The box reaches outside the canvas: grow it first, then trim.
-        doc.resizeCanvasTo(doc.width + dx * 2, doc.height + dy * 2, 'center');
-        rect.x += dx;
-        rect.y += dy;
-      }
       const unchanged = rect.x === 0 && rect.y === 0 && rect.width === doc.width && rect.height === doc.height;
-      if (!unchanged) doc.crop(rect);
-      else noChange = dx === 0 && dy === 0;
+      if (!unchanged) {
+        if (this.state.deleteCropped === false) rotatedCrop(doc, rect, 0, false);
+        else doc.crop(rect);
+      } else noChange = true;
     }
 
     const res = Number(this.state.resolution);
@@ -776,10 +706,11 @@ class PerspectiveCropTool extends Tool {
       return;
     }
 
-    const sw = doc.width;
-    const sh = doc.height;
-    const warp = (src, isMask) => {
-      const simg = ctx2dRead(src).getImageData(0, 0, sw, sh);
+    const warp = (source) => {
+      if (!source) return null;
+      const sw = source.canvas.width, sh = source.canvas.height;
+      checkPixelAllocation(W, H, sw * sh * 2 + W * H * 2, (doc.memoryLimitMB || 512) * 1048576);
+      const simg = ctx2dRead(source.canvas).getImageData(0, 0, sw, sh);
       const sd = simg.data;
       const out = new ImageData(W, H);
       const od = out.data;
@@ -789,11 +720,13 @@ class PerspectiveCropTool extends Tool {
         for (let u = 0; u < W; u++) {
           const uu = u + 0.5;
           const den = fwd[6] * uu + fwd[7] * vv + 1;
-          const x = (fwd[0] * uu + fwd[1] * vv + fwd[2]) / den - 0.5;
-          const y = (fwd[3] * uu + fwd[4] * vv + fwd[5]) / den - 0.5;
+          const x = (fwd[0] * uu + fwd[1] * vv + fwd[2]) / den - 0.5 - source.x;
+          const y = (fwd[3] * uu + fwd[4] * vv + fwd[5]) / den - 0.5 - source.y;
           const o = (v * W + u) * 4;
           if (x < -0.5 || y < -0.5 || x > sw - 0.5 || y > sh - 0.5) {
-            if (isMask) { od[o] = od[o + 1] = od[o + 2] = 255; od[o + 3] = 255; }
+            if (source.defaultValue != null) {
+              od[o] = od[o + 1] = od[o + 2] = source.defaultValue; od[o + 3] = 255;
+            }
             continue;
           }
           sampleBilinear(sd, sw, sh, x, y, px);
@@ -814,15 +747,23 @@ class PerspectiveCropTool extends Tool {
     };
 
     const layers = doc.flatLayers();
-    doc.beginEdit(layers);
-    for (const l of layers) {
-      if (l.canvas) l.canvas = warp(l.canvas, false);
-      if (l.mask) {
-        l.mask = warp(l.mask, true);
-        l.touchMask();
+    const surfaces = layers.reduce((n, l) => n + !!l.getPixelSource() + !!l.getMaskSource(), 0);
+    checkPixelAllocation(W, H, doc.memoryUse() / 4 + W * H * (surfaces + 3),
+      (doc.memoryLimitMB || 512) * 1048576);
+    const prepared = layers.map((layer) => {
+      const geometry = { text: layer.text, shape: layer.shape };
+      mapLayerGeometry(geometry, (x, y) => mapPt({ x, y }));
+      let smart = layer.smart;
+      if (smart) {
+        const shape = fromMatrix3(matrix3Multiply([...inv, 1], getSmartMatrix3(layer)));
+        if (!shape) throw new Error('裁剪后的智能对象变换无效');
+        smart = { ...smart, transform: { ...smart.transform, ...shape } };
       }
-    }
-    for (const path of doc.paths) {
+      return { layer, geometry, smart, pixels: warp(layer.getPixelSource()),
+        mask: warp(layer.getMaskSource()), maskDefault: layer.getMaskSource()?.defaultValue };
+    });
+    const paths = structuredClone(doc.paths);
+    for (const path of paths) {
       for (const sp of path.subpaths || []) {
         for (const pt of sp.points || []) {
           const a = mapPt(pt);
@@ -832,6 +773,17 @@ class PerspectiveCropTool extends Tool {
         }
       }
     }
+
+    const target = { width: W, height: H };
+    for (const { layer, pixels, mask, geometry, smart, maskDefault } of prepared) {
+      layer.setDocumentSize(W, H);
+      if (pixels) layer.setPixelSource(pixels, 0, 0, target);
+      if (mask) layer.setMaskSource(mask, 0, 0, maskDefault, target);
+      layer.text = geometry.text;
+      layer.shape = geometry.shape;
+      layer.smart = smart;
+    }
+    doc.paths = paths;
 
     doc.width = W;
     doc.height = H;

@@ -1,6 +1,7 @@
 import { PikaDocument } from '../core/document.js';
-import { createRasterLayer } from '../core/layer.js';
+import { Layer, LayerType } from '../core/layer.js';
 import { decodeImage } from '../io/decode.js';
+import { createCanvas } from '../core/util.js';
 
 function reject(message, code = 'INVALID_INPUT') {
   throw Object.assign(new Error(message), { code });
@@ -72,13 +73,15 @@ export async function insertImages(app, payload) {
       // Reverse insertion keeps the original result order from top to bottom.
       for (let i = sources.length - 1; i >= 0; i--) {
         const source = sources[i];
-        const layer = createRasterLayer(width, height, payload.images[i].name || 'Image');
+        const layer = new Layer({ type: LayerType.RASTER, name: payload.images[i].name || 'Image' });
         const scale = Math.min(1, width / source.width, height / source.height);
         const w = Math.max(1, Math.round(source.width * scale));
         const h = Math.max(1, Math.round(source.height * scale));
-        const c = layer.canvas.getContext('2d');
+        const pixels = createCanvas(w, h);
+        const c = pixels.getContext('2d');
         c.imageSmoothingQuality = 'high';
-        c.drawImage(source, Math.round((width - w) / 2), Math.round((height - h) / 2), w, h);
+        c.drawImage(source, 0, 0, w, h);
+        layer.setPixelSource(pixels, Math.round((width - w) / 2), Math.round((height - h) / 2), doc);
         doc.addLayer(layer, { above });
         above = layer;
         layerIds[i] = layer.id;

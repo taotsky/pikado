@@ -578,11 +578,12 @@ suite('camera raw / effects behave as named', async (t) => {
 suite('camera raw / is non-destructive on a Smart Object', async (t) => {
   const doc = t.doc(120, 90, '#808080', 'camera-raw-smart');
   const layer = doc.activeLayer();
-  const c = ctx2d(layer.canvas);
-  c.fillStyle = '#808080';
-  c.fillRect(0, 0, 120, 90);
-  c.fillStyle = '#c04030';
-  c.fillRect(10, 10, 40, 40);
+  t.paint(layer, (c) => {
+    c.fillStyle = '#808080';
+    c.fillRect(0, 0, 120, 90);
+    c.fillStyle = '#c04030';
+    c.fillRect(10, 10, 40, 40);
+  });
   doc.commit('Paint');
   const original = t.bytes(layer.canvas);
 

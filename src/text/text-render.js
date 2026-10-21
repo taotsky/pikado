@@ -24,6 +24,7 @@
  */
 
 import { createCanvas, ctx2d, clamp } from '../core/util.js';
+import { checkPixelAllocation } from '../core/layer.js';
 import { fontCssString, fontMetrics, measureRun, measureChars, normalizeFontId } from './fonts.js';
 
 export const WARP_STYLES = [
@@ -682,6 +683,7 @@ export function rasterizeTextLayer(layer, doc) {
   const cv = createCanvas(w, h);
   const raw = layer && layer.text;
   if (!raw) return cv;
+  let source = { canvas: cv, x: 0, y: 0 };
 
   syncTextAliases(raw);
   const t = resolveTextProps(raw);
@@ -693,6 +695,7 @@ export function rasterizeTextLayer(layer, doc) {
     const pad = Math.ceil(Math.max(6, t.size * 0.6));
     const tw = Math.max(1, Math.ceil(lay.width) + pad * 2);
     const th = Math.max(1, Math.ceil(lay.height) + pad * 2);
+    checkPixelAllocation(tw, th, w * h, (doc?.memoryLimitMB || 512) * 1048576);
     const tmp = createCanvas(tw, th);
     drawLayout(ctx2d(tmp), lay, pad, pad);
     applyAntialias(tmp, t.antialias);
@@ -708,10 +711,11 @@ export function rasterizeTextLayer(layer, doc) {
       oy += r.dy;
     }
     ctx2d(cv).drawImage(out, Math.round(ox), Math.round(oy));
+    source = { canvas: out, x: Math.round(ox), y: Math.round(oy) };
   }
 
   if (layer) {
-    layer.canvas = cv;
+    layer.setPixelSource(source.canvas, source.x, source.y, doc);
     layer.thumbDirty = true;
   }
   return cv;

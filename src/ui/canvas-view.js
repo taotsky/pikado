@@ -358,7 +358,7 @@ export class CanvasView {
       return;
     }
     this._pointerDown = true;
-    if (app.tool) app.tool.onPointerDown(ev);
+    if (!this._toolEvent('onPointerDown', ev, e)) return;
     e.preventDefault();
   }
 
@@ -376,9 +376,25 @@ export class CanvasView {
       this._lastDoc = { x: ev.x, y: ev.y };
       return;
     }
-    if (app.tool) app.tool.onPointerMove(ev);
+    if (!this._toolEvent('onPointerMove', ev, e)) return;
     this._crossDocHover(e);
     this._lastDoc = { x: ev.x, y: ev.y };
+  }
+
+  _toolEvent(method, event, pointer) {
+    try {
+      app.tool?.[method](event);
+      return true;
+    } catch (error) {
+      try { app.tool?.cancel(); } catch (cancelError) { console.error(cancelError); }
+      this._pointerDown = false;
+      this._lastDoc = null;
+      clearDropTarget();
+      if (this.canvas.hasPointerCapture?.(pointer.pointerId)) this.canvas.releasePointerCapture(pointer.pointerId);
+      app.toast(error.message || String(error), 'error');
+      app.requestRender();
+      return false;
+    }
   }
 
   /**
@@ -460,7 +476,7 @@ export class CanvasView {
       return;
     }
     const ev = this._normalize(e);
-    if (app.tool) app.tool.onPointerUp(ev);
+    this._toolEvent('onPointerUp', ev, e);
     this._lastDoc = null;
   }
 

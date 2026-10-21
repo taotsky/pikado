@@ -57,6 +57,7 @@ class App extends Emitter {
   /* --------------------------------------------------------------- */
 
   addDocument(doc, activate = true) {
+    doc.memoryLimitMB = this.memoryLimitMB || 512;
     this.docs.push(doc);
     doc.on('change', () => {
       if (doc === this.activeDoc) this.requestRender();

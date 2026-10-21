@@ -12,6 +12,7 @@ import {
 } from '../paint/gradients.js';
 import { getPattern, makeTiledCanvas } from '../paint/patterns.js';
 import './gradient.css';
+import { commitPaintSurface, setPaintPreview } from '../edit/pixels.js';
 
 /**
  * Gradient and Paint Bucket.
@@ -203,7 +204,8 @@ class GradientTool extends Tool {
     }
     d.x2 = x;
     d.y2 = y;
-    this.paint();
+    try { this.paint(); }
+    catch (error) { this.cancel(); throw error; }
     d.doc.touch('gradient');
   }
 
@@ -220,6 +222,7 @@ class GradientTool extends Tool {
       dither: this.state.dither,
     }, doc.width, doc.height);
     paintInk(doc, d.layer, d.target, d.base, ink, this.state.mode, clamp(this.state.opacity / 100, 0, 1));
+    setPaintPreview(d.layer, d.target);
     d.drawn = true;
   }
 
@@ -228,18 +231,24 @@ class GradientTool extends Tool {
     if (!d) return;
     this.drag = null;
     if (!d.drawn) return;
-    d.doc.commit('Gradient');
+    try {
+      commitPaintSurface(d.doc, d.layer, d.target, d.doc.selection.active ? d.doc.selection.bounds() : null);
+      d.doc.commit('Gradient');
+    } finally {
+      setPaintPreview(d.layer, null);
+    }
   }
 
   cancel() {
     const d = this.drag;
     if (!d) return;
     this.drag = null;
-    const c = d.target.getContext('2d');
-    c.setTransform(1, 0, 0, 1, 0, 0);
-    c.clearRect(0, 0, d.target.width, d.target.height);
-    c.drawImage(d.base, 0, 0);
+    setPaintPreview(d.layer, null);
     d.doc.touch('gradient-cancel');
+  }
+
+  onDeactivate() {
+    this.cancel();
   }
 
   /**
@@ -497,6 +506,7 @@ class BucketTool extends Tool {
       this.state.mode, clamp(this.state.opacity / 100, 0, 1),
       maskToAlphaCanvas(mask, doc.width, doc.height)
     );
+    commitPaintSurface(doc, layer, target, doc.selection.active ? doc.selection.bounds() : null);
     doc.commit('Paint Bucket');
   }
 

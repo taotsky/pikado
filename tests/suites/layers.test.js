@@ -36,9 +36,11 @@ function brush(o) {
 
 function addFilled(doc, name, color, x, y, w, h) {
   const l = createRasterLayer(doc.width, doc.height, name);
-  const c = l.canvas.getContext('2d');
+  const pixels = l.canvas;
+  const c = pixels.getContext('2d');
   c.fillStyle = color;
   c.fillRect(x, y, w, h);
+  l.setPixelSource(pixels, 0, 0, doc);
   doc.addLayer(l);
   return l;
 }
@@ -76,7 +78,7 @@ suite('layers / add, name, duplicate, delete', async (t) => {
   const [copy] = duplicateLayers(doc, [src]);
   t.eq(copy.name, 'Layer 1 copy', 'a duplicate is named "<name> copy"');
   t.eq(t.px(copy.canvas, 10, 10), '255,0,0,255', 'the duplicate carries the pixels');
-  t.ok(copy.canvas !== src.canvas, 'the duplicate owns its own buffer');
+  t.isNot(copy.pixelKey(), src.pixelKey(), 'the duplicate owns its own buffer');
   t.eq(doc.locate(copy).index, doc.locate(src).index - 1, 'the copy sits directly above the original');
   t.eq(doc.selectedLayerIds, [copy.id], 'the copy becomes the selection');
   // Independence: editing the copy must not touch the original.
@@ -322,10 +324,10 @@ suite('layers / layer masks', async (t) => {
   /* applyLayerMask bakes the mask into the pixels. */
   const apply = addFilled(doc, 'apply', '#ff00ff', 0, 0, 100, 100);
   addLayerMask(doc, apply, 'reveal-all');
-  const mc = apply.mask.getContext('2d');
-  mc.fillStyle = '#000000';
-  mc.fillRect(50, 0, 50, 100);
-  apply.touchMask();
+  t.paintMask(apply, (mc) => {
+    mc.fillStyle = '#000000';
+    mc.fillRect(50, 0, 50, 100);
+  });
   t.eq(t.px(apply.canvas, 75, 50), '255,0,255,255', 'precondition: the pixels are still there behind the mask');
   applyLayerMask(doc, apply);
   t.eq(apply.mask, null, 'applyLayerMask drops the mask');
@@ -511,14 +513,17 @@ suite('layers / undo integrity sweep (20+ mixed operations)', async (t) => {
   function paintOn(layer, color, x0, y0, x1, y1, size = 14) {
     doc.beginEdit(layer);
     const onMask = layer.editingMask && layer.mask;
+    const target = layer.paintTarget();
     const s = new PaintStroke({
-      doc, layer, target: layer.paintTarget(), color, brush: brush({ size }),
+      doc, layer, target, color, brush: brush({ size }),
     });
     s.begin(x0, y0, 1);
     s.move(x1, y1, 1);
     s.end();
     s.flush();
-    if (onMask) layer.touchMask();
+    const rect = { x: 0, y: 0, width: doc.width, height: doc.height };
+    if (onMask) layer.commitMaskRegion(doc, rect, target);
+    else layer.commitPixelRegion(doc, rect, target);
     doc.commit('Paint');
   }
 
@@ -622,12 +627,14 @@ suite('layers / undo integrity sweep (20+ mixed operations)', async (t) => {
   {
     const layer = doc.activeLayer();
     doc.beginEdit(layer);
+    const target = layer.canvas;
     const s = new PaintStroke({
-      doc, layer, target: layer.canvas, mode: 'erase',
+      doc, layer, target, mode: 'erase',
       brush: brush({ size: 24, shape: 'square' }),
     });
     for (let x = -12; x <= 60; x += 12) s.stamp(x, 6, 1);
     s.flush();
+    layer.commitPixelRegion(doc, { x: 0, y: 0, width: doc.width, height: doc.height }, target);
     doc.commit('Erase Top Rows');
   }
   snap('erase the top rows');

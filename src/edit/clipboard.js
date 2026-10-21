@@ -1,11 +1,12 @@
 import { app } from '../core/app.js';
 import { t } from '../i18n.js';
-import { createCanvas, loadImage, clamp } from '../core/util.js';
+import { createCanvas, cloneCanvas, loadImage, clamp } from '../core/util.js';
 import { decodeImage } from '../io/decode.js';
 import { compositeDocument, flattenLayers } from '../render/compositor.js';
 import { Layer, LayerType } from '../core/layer.js';
 import { nextLayerName } from '../layers/ops.js';
 import { toCss } from '../core/color.js';
+import { commitPaintSurface } from './pixels.js';
 
 /**
  * Edit > Cut / Copy / Copy Merged / Paste / Paste Into / Paste Outside / Clear.
@@ -85,22 +86,10 @@ function storeClipboard(doc, canvas, bounds) {
   return app.clipboard;
 }
 
-/** Build a document-sized layer canvas holding `src` at (x, y). */
-function placedCanvas(doc, src, x, y) {
-  const cv = createCanvas(doc.width, doc.height);
-  cv.getContext('2d').drawImage(src, Math.round(x), Math.round(y));
-  return cv;
-}
-
 /**
  * Scale artwork down until it fits the document, and only then.
  *
- * A layer buffer is document-sized with no offset (ARCHITECTURE.md golden rule
- * 3), so anything `placedCanvas` draws past the canvas edge is not stored
- * anywhere — it is gone, and no amount of moving the layer afterwards brings it
- * back. Pasting an image larger than the canvas therefore used to lose its
- * sides in silence, which is what an image copied out of another browser tab
- * usually is. Fitting keeps the whole picture.
+ * Keep the existing placement size rule while preserving the complete source.
  *
  * A clip that already fits is returned untouched rather than redrawn, so every
  * paste that worked before stays byte-identical and lands where it always did.
@@ -199,7 +188,6 @@ export function clear(doc, { label = 'Clear' } = {}) {
     return false;
   }
 
-  doc.beginEdit(layer);
   const cv = onMask ? layer.mask : layer.canvas;
   const c = cv.getContext('2d');
   const sel = doc.selection.active ? doc.selection.toAlphaCanvas() : null;
@@ -235,7 +223,7 @@ export function clear(doc, { label = 'Clear' } = {}) {
     c.clearRect(0, 0, cv.width, cv.height);
   }
 
-  if (onMask) layer.touchMask();
+  commitPaintSurface(doc, layer, cv, doc.selection.active ? doc.selection.bounds() : null, onMask);
   doc.commit(label);
   return true;
 }
@@ -268,10 +256,10 @@ function addPastedLayer(doc, clip, { name, mask = null, label = 'Paste' }) {
   const layer = new Layer({
     type: LayerType.RASTER,
     name: name || nextLayerName(doc),
-    canvas: placedCanvas(doc, art, pos.x, pos.y),
   });
+  layer.setPixelSource(cloneCanvas(art), Math.round(pos.x), Math.round(pos.y), doc);
   if (mask) {
-    layer.mask = mask;
+    layer.setMaskSource(mask, 0, 0, 0, doc);
     layer.maskEnabled = true;
     layer.touchMask();
   }
@@ -339,9 +327,9 @@ export async function pasteInto(doc, { outside = false } = {}) {
   const layer = new Layer({
     type: LayerType.RASTER,
     name: nextLayerName(doc),
-    canvas: placedCanvas(doc, art, pos.x, pos.y),
   });
-  layer.mask = mask;
+  layer.setPixelSource(cloneCanvas(art), Math.round(pos.x), Math.round(pos.y), doc);
+  layer.setMaskSource(mask, 0, 0, outside ? 255 : 0, doc);
   layer.maskEnabled = true;
   layer.maskLinked = true;
   layer.touchMask();

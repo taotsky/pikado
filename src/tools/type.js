@@ -179,7 +179,7 @@ class TypeSession {
     const c = ctx2d(cv);
     c.fillStyle = 'rgba(214,44,44,.45)';
     c.fillRect(0, 0, w, h);
-    if (layer.canvas) {
+    if (layer.pixelKey()) {
       c.globalCompositeOperation = 'destination-out';
       c.drawImage(layer.canvas, 0, 0);
       c.globalCompositeOperation = 'source-over';

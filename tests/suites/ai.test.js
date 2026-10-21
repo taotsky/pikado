@@ -228,7 +228,7 @@ suite('ai / a generation lands as one masked layer and one undo step', async (t)
   const doc = docWithSelection(t);
   const bg = doc.layers[0];
   const bgId = bg.id;
-  const bgCanvas = bg.canvas;
+  const bgCanvas = bg.pixelKey();
   const before = doc.history.states.length;
 
   const layer = await runGenerativeFill(doc, { provider, prompt: 'a blue vase' });
@@ -244,7 +244,7 @@ suite('ai / a generation lands as one masked layer and one undo step', async (t)
    * The assertion that fails the moment somebody "helpfully" composites in
    * place. Identity, not deep equality — a deep compare would pass vacuously.
    */
-  t.is(doc.findLayer(bgId).canvas, bgCanvas, 'the layer underneath was never copy-on-written');
+  t.is(doc.findLayer(bgId).pixelKey(), bgCanvas, 'the layer underneath was never copy-on-written');
 
   const composite = getComposite(doc);
   t.ne(t.px(composite, 140, 130), '255,255,255,255', 'generated pixels show inside the selection');

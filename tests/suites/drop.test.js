@@ -231,9 +231,11 @@ suite('drop / a paste that already fits still lands where it was copied', async 
 /** A document-sized layer holding one solid rectangle, and nothing else. */
 function objectLayer(doc, color, x, y, w, h, name = 'object') {
   const layer = createRasterLayer(doc.width, doc.height, name);
-  const c = layer.canvas.getContext('2d');
+  const pixels = layer.canvas;
+  const c = pixels.getContext('2d');
   c.fillStyle = color;
   c.fillRect(x, y, w, h);
+  layer.setPixelSource(pixels, 0, 0, doc);
   doc.addLayer(layer);
   return layer;
 }

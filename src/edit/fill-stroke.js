@@ -1,5 +1,6 @@
 import { app } from '../core/app.js';
 import { t } from '../i18n.js';
+import { commitPaintSurface } from './pixels.js';
 import { createCanvas, uid } from '../core/util.js';
 import { toCss, toHex } from '../core/color.js';
 import { BLEND_MODES, isNativeBlend, gcoFor, blendCPU } from '../core/blend.js';
@@ -206,10 +207,8 @@ function historyCanvas(doc, layer) {
     return null;
   };
   const snap = find(first.state.layers);
-  if (!snap || !snap.canvas) return null;
-  const cv = createCanvas(doc.width, doc.height);
-  cv.getContext('2d').drawImage(snap.canvas, 0, 0);
-  return cv;
+  if (!snap) return null;
+  return Layer.fromSnapshot(snap).projectPixels(doc);
 }
 
 /**
@@ -259,12 +258,7 @@ export function fillSelection(doc, opts = {}) {
   });
 
   doc.beginEdit(layer);
-  if (surf.isMask) {
-    layer.mask = out;
-    layer.touchMask();
-  } else {
-    layer.canvas = out;
-  }
+  commitPaintSurface(doc, layer, out, doc.selection.active ? doc.selection.bounds() : null, surf.isMask);
   doc.commit('Fill');
   return true;
 }
@@ -399,12 +393,7 @@ export function strokeSelection(doc, opts = {}) {
     preserveTransparency: !!opts.preserveTransparency || (!surf.isMask && layer.locked.transparency),
   });
   doc.beginEdit(layer);
-  if (surf.isMask) {
-    layer.mask = out;
-    layer.touchMask();
-  } else {
-    layer.canvas = out;
-  }
+  commitPaintSurface(doc, layer, out, doc.selection.active ? doc.selection.bounds() : null, surf.isMask);
   doc.commit('Stroke');
   return true;
 }
@@ -763,7 +752,7 @@ export function contentAwareFill(doc, opts = {}) {
   oc.drawImage(doc.selection.toAlphaCanvas(), 0, 0);
   oc.globalCompositeOperation = 'source-over';
   oc.drawImage(patch, 0, 0);
-  layer.canvas = out;
+  commitPaintSurface(doc, layer, out, doc.selection.bounds(), false);
   doc.commit('Content-Aware Fill');
   return true;
 }

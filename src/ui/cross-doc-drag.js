@@ -1,7 +1,6 @@
 import { app } from '../core/app.js';
 import { createCanvas, ctx2d } from '../core/util.js';
-import { flattenLayers, getComposite } from '../render/compositor.js';
-import { layersBounds } from '../core/layer-bounds.js';
+import { flattenCompleteLayers, getComposite } from '../render/compositor.js';
 import { placeAsLayer } from '../io/open.js';
 import './cross-doc-drag.css';
 
@@ -124,24 +123,9 @@ export function cropTo(src, bounds) {
   return out;
 }
 
-/**
- * The pixels of `layers` as one canvas, trimmed to what they actually cover.
- *
- * `flattenLayers` returns a canvas the size of the SOURCE document, so a 40x30
- * object living in a 4000x3000 document would arrive in a small one scaled to
- * nothing in a corner — technically uncropped and completely useless. Trimming
- * to the content first is what makes a dragged layer land at a size you can
- * work with. Where a layer fills its canvas the two are the same thing, so this
- * only ever helps.
- *
- * `layersBounds` is cached on the pixel buffer and is already tile-aware, so
- * this does not rescan or expand a compact layer. It returns null for a group
- * (a group holds no pixels of its own), and then the untrimmed flatten is used,
- * which is correct if not tight.
- */
+/** Copy complete layer content, including pixels outside the source viewport. */
 export function artworkOf(doc, layers) {
-  const flat = flattenLayers(doc, layers);
-  return cropTo(flat, layersBounds(layers));
+  return flattenCompleteLayers(doc, layers, (app.memoryLimitMB || 512) * 1048576).canvas;
 }
 
 /** A whole document flattened, for a tab dragged onto another document. */

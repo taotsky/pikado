@@ -4,6 +4,8 @@ import { app } from '../core/app.js';
 import { PaintStroke, brushOptionDescriptors, brushFromOptions } from '../paint/brush-engine.js';
 import { ctx2dRead, clamp } from '../core/util.js';
 import { BrushToolBase, tweakDefaults } from './brush.js';
+import { Layer } from '../core/layer.js';
+import { paintSurface } from '../edit/pixels.js';
 
 /**
  * History Brush and Art History Brush.
@@ -61,12 +63,13 @@ export function historySourceCanvasFor(doc, layer, { warn = true } = {}) {
     if (warn) app.toast(t('"{name}" does not exist in the history source state.', { name: layer.name }), 'warn');
     return null;
   }
-  const cv = layer.editingMask ? snap.mask : snap.canvas;
+  const historical = Layer.fromSnapshot(snap);
+  const cv = layer.editingMask ? historical.projectMask(doc) : historical.projectPixels(doc);
   if (!cv) {
     if (warn) app.toast('The history source has no pixels for this layer.', 'warn');
     return null;
   }
-  if (cv.width !== doc.width || cv.height !== doc.height) {
+  if (entry.state.width !== doc.width || entry.state.height !== doc.height) {
     if (warn) app.toast('The history source was a different canvas size.', 'warn');
     return null;
   }
@@ -89,13 +92,13 @@ class HistoryBrushTool extends BrushToolBase {
     });
   }
 
-  makeStroke(e, doc, layer) {
+  makeStroke(e, doc, layer, target) {
     const source = historySourceCanvasFor(doc, layer);
     if (!source) return null;
     return new PaintStroke({
       doc,
       layer,
-      target: layer.paintTarget(),
+      target,
       brush: brushFromOptions(this.state),
       mode: 'paint',
       sourceImage: source,
@@ -161,11 +164,11 @@ class ArtHistoryTool extends BrushToolBase {
     const source = historySourceCanvasFor(doc, layer);
     if (!source) return;
 
-    doc.beginEdit(layer);
+    const target = paintSurface(doc, layer);
     const stroke = new PaintStroke({
       doc,
       layer,
-      target: layer.paintTarget(),
+      target,
       brush: brushFromOptions(this.state, { smoothing: 0, spacing: 0.25 }),
       mode: 'paint',
       sourceImage: source,

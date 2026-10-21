@@ -18,6 +18,7 @@ import * as tf from '../tools/transform.js';
 import { growSelection, similarSelection } from '../tools/wand.js';
 import { applyAdjustmentCommand, applyFilterCommand, repeatLastFilter } from '../filters/run.js';
 import { rasterizeTextLayer, WARP_STYLES } from '../text/text-render.js';
+import { commitPaintSurface } from '../edit/pixels.js';
 import { createShapeLayer, defaultShapeStyle, fitCurve } from '../vector/path.js';
 
 import { cut, copy, copyMerged, paste, pasteInto, pasteOutside, clear } from '../edit/clipboard.js';
@@ -59,7 +60,7 @@ const isSmart = () => smart.isSmartLayer(activeLayer());
 
 function hasPixels() {
   const l = activeLayer();
-  return !!(l && (l.canvas || (l.editingMask && l.mask)));
+  return !!(l && (l.pixelKey() || (l.editingMask && l.getMaskSource())));
 }
 
 function layerOfType(type) {
@@ -547,8 +548,8 @@ function maskFromCanvas(canvas, w, h) {
 async function loadSelection(doc) {
   const sources = [
     ...doc.alphaChannels.map((c) => ({ value: `chan:${c.id}`, label: t('Channel — {name}', { name: c.name }) })),
-    ...doc.flatLayers().filter((l) => l.canvas).map((l) => ({ value: `layer:${l.id}`, label: t('{name} Transparency', { name: l.name }) })),
-    ...doc.flatLayers().filter((l) => l.mask).map((l) => ({ value: `mask:${l.id}`, label: t('{name} Mask', { name: l.name }) })),
+    ...doc.flatLayers().filter((l) => l.pixelKey()).map((l) => ({ value: `layer:${l.id}`, label: t('{name} Transparency', { name: l.name }) })),
+    ...doc.flatLayers().filter((l) => l.getMaskSource()).map((l) => ({ value: `mask:${l.id}`, label: t('{name} Mask', { name: l.name }) })),
   ];
   if (!sources.length) { app.toast('There is nothing to load a selection from.'); return; }
 
@@ -652,7 +653,7 @@ function deselectLayers(doc) {
 /** The layer Layer Via Copy/Cut reads from — real pixels, not a group or mask. */
 function viaSourceLayer() {
   const l = activeLayer();
-  if (!l || !l.canvas || l.type === LayerType.GROUP) return null;
+  if (!l || !l.pixelKey() || l.type === LayerType.GROUP) return null;
   if (l.editingMask) return null; // "via copy" means the pixels, not the mask
   return l;
 }
@@ -691,11 +692,13 @@ function layerViaSelection(doc, cut) {
   if (cut) {
     // COW before the source pixels change, or older undo states lose them.
     doc.beginEdit(layer);
-    const lc = layer.canvas.getContext('2d');
+    const target = layer.projectPixels(doc);
+    const lc = target.getContext('2d');
     lc.save();
     lc.globalCompositeOperation = 'destination-out';
     lc.drawImage(alpha, 0, 0);
     lc.restore();
+    commitPaintSurface(doc, layer, target, doc.selection.bounds(), false);
   }
 
   doc.addLayer(new Layer({ type: LayerType.RASTER, name: ops.nextLayerName(doc), canvas: cv }), { above: layer });
@@ -813,7 +816,7 @@ function setTextProp(doc, patch, label) {
   if (!l || !l.text) return;
   doc.beginEdit(l);
   Object.assign(l.text, patch);
-  l.canvas = rasterizeTextLayer(l, doc);
+  rasterizeTextLayer(l, doc);
   doc.commit(label);
 }
 
@@ -824,7 +827,7 @@ async function warpTextDialog(doc) {
   const original = { ...current };
   const apply = (s) => {
     l.text.warp = { style: s.style, bend: s.bend, h: s.h, v: s.v };
-    l.canvas = rasterizeTextLayer(l, doc);
+    rasterizeTextLayer(l, doc);
     doc.touch('warp-preview');
   };
   doc.beginEdit(l);
@@ -1602,38 +1605,38 @@ registerCommands([
 
   {
     id: 'layer.mask.reveal-all', label: 'Reveal All',
-    enabled: () => { const l = activeLayer(); return !!(l && !l.mask); },
+    enabled: () => { const l = activeLayer(); return !!(l && !l.getMaskSource()); },
     run: () => ops.addLayerMask(D(), null, 'reveal-all'),
   },
   {
     id: 'layer.mask.hide-all', label: 'Hide All',
-    enabled: () => { const l = activeLayer(); return !!(l && !l.mask); },
+    enabled: () => { const l = activeLayer(); return !!(l && !l.getMaskSource()); },
     run: () => ops.addLayerMask(D(), null, 'hide-all'),
   },
   {
     id: 'layer.mask.reveal-selection', label: 'Reveal Selection',
-    enabled: () => { const l = activeLayer(); return !!(l && !l.mask) && hasSelection(); },
+    enabled: () => { const l = activeLayer(); return !!(l && !l.getMaskSource()) && hasSelection(); },
     run: () => ops.addLayerMask(D(), null, 'reveal-selection'),
   },
   {
     id: 'layer.mask.hide-selection', label: 'Hide Selection',
-    enabled: () => { const l = activeLayer(); return !!(l && !l.mask) && hasSelection(); },
+    enabled: () => { const l = activeLayer(); return !!(l && !l.getMaskSource()) && hasSelection(); },
     run: () => ops.addLayerMask(D(), null, 'hide-selection'),
   },
   {
     id: 'layer.mask.delete', label: 'Delete',
-    enabled: () => { const l = activeLayer(); return !!(l && l.mask); },
+    enabled: () => { const l = activeLayer(); return !!(l && l.getMaskSource()); },
     run: () => ops.deleteLayerMask(D()),
   },
   {
     id: 'layer.mask.apply', label: 'Apply',
-    enabled: () => { const l = activeLayer(); return !!(l && l.mask && l.canvas); },
+    enabled: () => { const l = activeLayer(); return !!(l && l.getMaskSource() && l.pixelKey()); },
     run: () => ops.applyLayerMask(D()),
   },
   {
     id: 'layer.mask.toggle', label: 'Disable',
-    dynamicLabel: () => { const l = activeLayer(); return t(l && l.mask && !l.maskEnabled ? 'Enable' : 'Disable'); },
-    enabled: () => { const l = activeLayer(); return !!(l && l.mask); },
+    dynamicLabel: () => { const l = activeLayer(); return t(l && l.getMaskSource() && !l.maskEnabled ? 'Enable' : 'Disable'); },
+    enabled: () => { const l = activeLayer(); return !!(l && l.getMaskSource()); },
     run: () => ops.toggleMaskEnabled(D()),
   },
 
@@ -1929,8 +1932,7 @@ registerCommands([
         for (const l of layers) {
           l.text.font = id;
           delete l.text.fontFamily;
-          const cv = await rasterizeTextLayer(l, doc);
-          if (cv) l.canvas = cv;
+          await rasterizeTextLayer(l, doc);
         }
         doc.commit('Change Font');
       } else if (app.tool && app.tool.state && 'font' in app.tool.state) {

@@ -1,11 +1,12 @@
 import { t } from '../i18n.js';
 import { Tool, registerTool } from './base.js';
 import { app } from '../core/app.js';
-import { LayerType, translateLayerGeometry } from '../core/layer.js';
+import { LayerType, translateLayerGeometry, checkPixelAllocation } from '../core/layer.js';
+import { isSmartLayer, getSmartTransform, getSmartPerspective, setSmartTransform } from '../core/smart.js';
 import { createCanvas, cloneCanvas, uid, el } from '../core/util.js';
 import { snapRect, clearSnapLines } from '../core/snapping.js';
 import {
-  layerBounds as contentBoundsOf, cacheShiftedBounds, layersBounds, peekBounds,
+  layerBounds as contentBoundsOf, layersBounds,
 } from '../core/layer-bounds.js';
 import { iconEl } from '../ui/icons.js';
 import {
@@ -48,27 +49,58 @@ function movableTargets(list, { warn = false } = {}) {
   return out;
 }
 
-function shiftCanvas(cv, dx, dy) {
-  const tmp = cloneCanvas(cv);
-  const c = cv.getContext('2d');
-  c.setTransform(1, 0, 0, 1, 0, 0);
-  c.clearRect(0, 0, cv.width, cv.height);
-  c.drawImage(tmp, dx, dy);
-}
-
-/** Offset a layer's pixels (and its mask when linked). Needs beginEdit first. */
-function offsetLayer(layer, dx, dy) {
+/** Move stored coordinates without resampling or discarding off-canvas pixels. */
+function offsetLayer(doc, layer, dx, dy) {
   if (!dx && !dy) return;
-  if (layer.canvas) shiftCanvas(layer.canvas, dx, dy);
+  if (isSmartLayer(layer)) {
+    const matrix = getSmartTransform(layer);
+    const perspective = getSmartPerspective(layer);
+    matrix[4] += dx;
+    matrix[5] += dy;
+    setSmartTransform(doc, layer, matrix, { commit: false, perspective });
+  } else {
+    layer.translatePixels(dx, dy, doc);
+  }
   // Text and shape layers can be re-rendered from their parameters at any time,
   // so those parameters have to move with the pixels or the next re-render puts
   // the layer back where it was authored.
   translateLayerGeometry(layer, dx, dy);
-  if (layer.mask && layer.maskLinked) {
-    shiftCanvas(layer.mask, dx, dy);
-    layer.touchMask();
+  if (layer.getMaskSource() && layer.maskLinked) {
+    layer.translateMask(dx, dy, doc);
   }
   layer.thumbDirty = true;
+}
+
+function restoreMoveBase(layer, base, doc) {
+  if (base.source) layer.setPixelSource(base.source.canvas, base.source.x, base.source.y, doc);
+  if (base.mask) layer.setMaskSource(base.mask.canvas, base.mask.x, base.mask.y, base.mask.defaultValue, doc);
+  layer.text = base.text && structuredClone(base.text);
+  layer.shape = base.shape && structuredClone(base.shape);
+  layer.smart = base.smart;
+}
+
+function captureMoveBase(layer) {
+  return {
+    source: layer.getPixelSource(),
+    mask: layer.maskLinked ? layer.getMaskSource() : null,
+    text: layer.text && structuredClone(layer.text),
+    shape: layer.shape && structuredClone(layer.shape),
+    smart: layer.smart,
+  };
+}
+
+function applyOffsets(doc, changes) {
+  const bases = changes.map(({ layer }) => captureMoveBase(layer));
+  try {
+    for (const { layer, dx, dy } of changes) offsetLayer(doc, layer, dx, dy);
+    return true;
+  } catch (error) {
+    changes.forEach(({ layer }, i) => restoreMoveBase(layer, bases[i], doc));
+    doc.invalidate();
+    app.requestRender();
+    app.toast(error.message, 'warn');
+    return false;
+  }
 }
 
 function alphaAt(canvas, x, y) {
@@ -86,16 +118,20 @@ function alphaAt(canvas, x, y) {
  * definition, which is the cheapest possible miss.
  */
 function layerAlphaAt(layer, x, y) {
-  const t = layer.tile;
-  if (!t) return alphaAt(layer.pixelKey(), x, y);
+  const t = layer.getPixelSource();
+  if (!t) return 0;
   return alphaAt(t.canvas, x - t.x, y - t.y);
 }
 
 function maskValueAt(layer, x, y) {
-  const m = layer.mask;
-  if (!m || x < 0 || y < 0 || x >= m.width || y >= m.height) return 255;
-  const d = m.getContext('2d', { willReadFrequently: true }).getImageData(x, y, 1, 1).data;
-  let v = (d[0] * 0.299 + d[1] * 0.587 + d[2] * 0.114) * (d[3] / 255);
+  const source = layer.getMaskSource();
+  if (!source) return 255;
+  const px = x - source.x, py = y - source.y;
+  let v = source.defaultValue;
+  if (px >= 0 && py >= 0 && px < source.canvas.width && py < source.canvas.height) {
+    const d = source.canvas.getContext('2d', { willReadFrequently: true }).getImageData(px, py, 1, 1).data;
+    v = (d[0] * 0.299 + d[1] * 0.587 + d[2] * 0.114) * (d[3] / 255);
+  }
   if (layer.maskInverted) v = 255 - v;
   return v;
 }
@@ -119,7 +155,7 @@ export function pickLayerAt(doc, x, y, kind = 'layer') {
     if (l.type === LayerType.GROUP || !l.visible || !l.pixelKey()) continue;
     if (!chainVisible(l)) continue;
     if (layerAlphaAt(l, px, py) < 8) continue;
-    if (l.mask && l.maskEnabled && maskValueAt(l, px, py) < 8) continue;
+    if (l.getMaskSource() && l.maskEnabled && maskValueAt(l, px, py) < 8) continue;
     if (kind === 'group' && l.parent) {
       let top = l;
       while (top.parent) top = top.parent;
@@ -147,7 +183,7 @@ export function layersUnderPoint(doc, x, y, limit = 10) {
     if (l.type === LayerType.GROUP || !l.visible || !l.pixelKey()) continue;
     if (!chainVisible(l)) continue;
     if (layerAlphaAt(l, px, py) < 8) continue;
-    if (l.mask && l.maskEnabled && maskValueAt(l, px, py) < 8) continue;
+    if (l.getMaskSource() && l.maskEnabled && maskValueAt(l, px, py) < 8) continue;
     out.push(l);
     if (out.length >= limit) break;
   }
@@ -179,7 +215,7 @@ export function alignLayers(doc, how) {
     return;
   }
   const t = alignTarget(doc, items.map((x) => x.l));
-  doc.beginEdit(items.map((x) => x.l));
+  const changes = [];
   for (const { l, b } of items) {
     let dx = 0, dy = 0;
     if (how === 'left') dx = t.x - b.x;
@@ -190,9 +226,9 @@ export function alignLayers(doc, how) {
     else if (how === 'bottom') dy = t.y + t.height - (b.y + b.height);
     dx = Math.round(dx);
     dy = Math.round(dy);
-    offsetLayer(l, dx, dy);
-    cacheShiftedBounds(l, b, dx, dy);
+    changes.push({ layer: l, dx, dy });
   }
+  if (!applyOffsets(doc, changes)) return;
   doc.commit('Align Layers');
 }
 
@@ -212,7 +248,7 @@ export function distributeLayers(doc, axis) {
   const start = first[key] + first[size] / 2;
   const end = last[key] + last[size] / 2;
   const step = (end - start) / (items.length - 1);
-  doc.beginEdit(items.map((x) => x.l));
+  const changes = [];
   for (let i = 1; i < items.length - 1; i++) {
     const it = items[i];
     const want = start + step * i;
@@ -220,9 +256,9 @@ export function distributeLayers(doc, axis) {
     const d = Math.round(want - cur);
     const dx = axis === 'h' ? d : 0;
     const dy = axis === 'h' ? 0 : d;
-    offsetLayer(it.l, dx, dy);
-    cacheShiftedBounds(it.l, it.b, dx, dy);
+    changes.push({ layer: it.l, dx, dy });
   }
+  if (!applyOffsets(doc, changes)) return;
   doc.commit('Distribute Layers');
 }
 
@@ -231,14 +267,7 @@ let lastNudge = null;
 export function nudgeLayers(doc, dx, dy) {
   const layers = movableTargets(doc.selectedLayers(), { warn: true });
   if (!layers.length) return false;
-  // Read the bounds before the edit so the cache can be carried across the
-  // copy-on-write rather than rescanning on every key repeat.
-  const prior = layers.map(peekBounds);
-  doc.beginEdit(layers);
-  layers.forEach((l, i) => {
-    offsetLayer(l, dx, dy);
-    if (prior[i] !== undefined) cacheShiftedBounds(l, prior[i], dx, dy);
-  });
+  if (!applyOffsets(doc, layers.map((layer) => ({ layer, dx, dy })))) return false;
   const now = performance.now();
   if (lastNudge && lastNudge.doc === doc && now - lastNudge.t < 900) {
     doc.dirty = true;
@@ -328,7 +357,7 @@ class MoveTool extends Tool {
 
   onDeactivate() {
     if (isTransforming()) commitTransform();
-    this.drag = null;
+    if (this.drag) this.onPointerUp({});
     this.blocked = null;
     if (clearSnapLines()) app.requestRender();
   }
@@ -348,8 +377,7 @@ class MoveTool extends Tool {
     this.drag = null;
     for (let i = 0; i < d.layers.length; i++) {
       const l = d.layers[i];
-      if (d.bases[i].canvas) l.canvas = cloneCanvas(d.bases[i].canvas);
-      if (d.bases[i].mask) { l.mask = cloneCanvas(d.bases[i].mask); l.touchMask(); }
+      restoreMoveBase(l, d.bases[i], d.doc);
     }
     if (d.baseSel) d.doc.selection.set(new Uint8ClampedArray(d.baseSel));
     d.doc.touch('move-cancel');
@@ -428,8 +456,6 @@ class MoveTool extends Tool {
     }
 
     const boxBounds = this.state.showTransform && !pixelMove ? layersBounds(layers) : null;
-    const priorBounds = layers.map(peekBounds);
-    doc.beginEdit(layers);
     const drag = {
       doc,
       layers,
@@ -440,11 +466,8 @@ class MoveTool extends Tool {
       moved: false,
       pixelMove,
       boxBounds,
-      priorBounds,
-      bases: layers.map((l) => ({
-        canvas: cloneCanvas(l.canvas),
-        mask: l.mask && l.maskLinked ? cloneCanvas(l.mask) : null,
-      })),
+      startBounds: layersBounds(layers),
+      bases: layers.map(captureMoveBase),
       float: null,
       erased: null,
       baseSel: null,
@@ -458,14 +481,15 @@ class MoveTool extends Tool {
       fc.drawImage(layer.canvas, 0, 0);
       fc.globalCompositeOperation = 'destination-in';
       fc.drawImage(sel, 0, 0);
-      const erased = createCanvas(doc.width, doc.height);
+      const source = drag.bases[0].source;
+      const erased = cloneCanvas(source.canvas);
       const ec = erased.getContext('2d');
-      ec.drawImage(layer.canvas, 0, 0);
       ec.globalCompositeOperation = 'destination-out';
-      ec.drawImage(sel, 0, 0);
+      ec.drawImage(sel, -source.x, -source.y);
       drag.float = float;
       drag.erased = erased;
       drag.baseSel = new Uint8ClampedArray(doc.selection.mask);
+      drag.selectionBounds = doc.selection.bounds();
     }
 
     this.drag = drag;
@@ -515,7 +539,7 @@ class MoveTool extends Tool {
    * @returns {{dx:number, dy:number, lines:Array}}
    */
   snapDrag(d, dx, dy, e) {
-    const base = d.boxBounds || layersBounds(d.layers);
+    const base = d.boxBounds || d.startBounds;
     if (!base) return { dx, dy, lines: [] };
     const r = snapRect(
       { x: base.x + dx, y: base.y + dy, width: base.width, height: base.height },
@@ -529,32 +553,36 @@ class MoveTool extends Tool {
     const d = this.drag;
     if (d.pixelMove) {
       const layer = d.layers[0];
-      const c = layer.canvas.getContext('2d');
-      c.setTransform(1, 0, 0, 1, 0, 0);
-      c.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
-      c.drawImage(d.erased, 0, 0);
-      c.drawImage(d.float, d.dx, d.dy);
+      const source = d.bases[0].source;
+      const b = d.selectionBounds;
+      const x = Math.min(source.x, b.x + d.dx), y = Math.min(source.y, b.y + d.dy);
+      const w = Math.max(source.x + source.canvas.width, b.x + b.width + d.dx) - x;
+      const h = Math.max(source.y + source.canvas.height, b.y + b.height + d.dy) - y;
+      try {
+        checkPixelAllocation(w, h, source.canvas.width * source.canvas.height + d.float.width * d.float.height, (app.memoryLimitMB || 512) * 1048576);
+      } catch {
+        this.abortDrag();
+        app.toast('移动范围超过像素内存预算，已取消操作。', 'warn');
+        return;
+      }
+      const out = createCanvas(w, h);
+      const c = out.getContext('2d');
+      c.drawImage(d.erased, source.x - x, source.y - y);
+      c.drawImage(d.float, d.dx - x, d.dy - y);
+      layer.setPixelSource(out, x, y, d.doc);
       layer.thumbDirty = true;
       d.doc.selection.set(translateMask(d.baseSel, d.doc.width, d.doc.height, d.dx, d.dy));
       return;
     }
-    for (let i = 0; i < d.layers.length; i++) {
-      const l = d.layers[i];
-      const base = d.bases[i];
-      if (l.canvas && base.canvas) {
-        const c = l.canvas.getContext('2d');
-        c.setTransform(1, 0, 0, 1, 0, 0);
-        c.clearRect(0, 0, l.canvas.width, l.canvas.height);
-        c.drawImage(base.canvas, d.dx, d.dy);
+    try {
+      for (let i = 0; i < d.layers.length; i++) {
+        const l = d.layers[i];
+        restoreMoveBase(l, d.bases[i], d.doc);
+        offsetLayer(d.doc, l, d.dx, d.dy);
       }
-      if (l.mask && base.mask) {
-        const c = l.mask.getContext('2d');
-        c.setTransform(1, 0, 0, 1, 0, 0);
-        c.clearRect(0, 0, l.mask.width, l.mask.height);
-        c.drawImage(base.mask, d.dx, d.dy);
-        l.touchMask();
-      }
-      l.thumbDirty = true;
+    } catch (error) {
+      this.abortDrag();
+      app.toast(error.message, 'warn');
     }
   }
 
@@ -578,11 +606,6 @@ class MoveTool extends Tool {
     // still put hints on screen.
     if (clearSnapLines()) app.requestRender();
     if (!d.moved) return;
-    if (!d.pixelMove) {
-      d.layers.forEach((l, i) => {
-        if (d.priorBounds[i] !== undefined) cacheShiftedBounds(l, d.priorBounds[i], d.dx, d.dy);
-      });
-    }
     d.doc.commit(d.pixelMove ? 'Move Selection' : 'Move Layer');
   }
 

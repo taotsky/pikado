@@ -451,7 +451,7 @@ function collectRecords(list, out) {
       && !shapeCarriesLiveCanvas(layer.shape, layer)) {
       // Live shape layer: the rasterised pixels *and* a vector mask + fill.
       out.push({ layer, kind: 'shape' });
-    } else if (layer.canvas) {
+    } else if (layer.pixelKey()) {
       out.push({ layer, kind: 'layer' });
     }
   }
@@ -481,21 +481,22 @@ function maskPlane(canvas, width, height) {
   const n = width * height;
   const out = new Uint8Array(n);
   for (let p = 0, i = 0; p < n; p++, i += 4) {
-    out[p] = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+    out[p] = Math.round((data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) * data[i + 3] / 255);
   }
   return out;
 }
 
-/** Content bounds clamped to the document, or null when the layer is empty. */
+/** Full document-space content bounds, including pixels outside the document. */
 function rectOf(layer, doc) {
   const bounds = layer.contentBounds();
   if (!bounds) return null;
-  const left = Math.max(0, bounds.x);
-  const top = Math.max(0, bounds.y);
-  const right = Math.min(doc.width, bounds.x + bounds.width);
-  const bottom = Math.min(doc.height, bounds.y + bounds.height);
-  if (right <= left || bottom <= top) return null;
-  return { left, top, right, bottom };
+  return { left: bounds.x, top: bounds.y, right: bounds.x + bounds.width, bottom: bounds.y + bounds.height };
+}
+
+function checkPSDCoordinates(...values) {
+  if (values.some((v) => !Number.isInteger(v) || v < -2147483648 || v > 2147483647)) {
+    throw new Error('A layer or mask is outside the coordinate range supported by PSD. Save it as a Pikado project instead.');
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -823,12 +824,15 @@ function writeLayerRecord(w, record, doc) {
   const bottom = rect ? rect.bottom : 0;
   const right = rect ? rect.right : 0;
 
+  checkPSDCoordinates(top, left, bottom, right);
+
   w.int32(top);
   w.int32(left);
   w.int32(bottom);
   w.int32(right);
 
-  const hasMask = !isDivider && !!layer.mask;
+  const mask = !isDivider ? layer.getMaskSource() : null;
+  const hasMask = !!mask;
   const channelIds = [-1, 0, 1, 2];
   if (hasMask) channelIds.push(-2);
 
@@ -857,14 +861,17 @@ function writeLayerRecord(w, record, doc) {
   w.uint32(0);
   const extraStart = w.length;
 
-  // Layer mask data — our masks always cover the whole document.
+  // Masks keep their own rectangle and coverage outside it.
   if (hasMask) {
+    const mx = mask.x - (layer.maskLinked === false ? left : 0);
+    const my = mask.y - (layer.maskLinked === false ? top : 0);
+    checkPSDCoordinates(my, mx, my + mask.canvas.height, mx + mask.canvas.width);
     w.uint32(20);
-    w.int32(0);
-    w.int32(0);
-    w.int32(doc.height);
-    w.int32(doc.width);
-    w.byte(0); // default colour: black outside the rectangle (unused here)
+    w.int32(my);
+    w.int32(mx);
+    w.int32(my + mask.canvas.height);
+    w.int32(mx + mask.canvas.width);
+    w.byte(mask.defaultValue);
     let maskFlags = 0;
     // Bit 0 is "position relative to layer", which is the inverse of Photoshop's
     // link toggle: a linked mask moves with the layer, so it is NOT relative.
@@ -928,7 +935,7 @@ function writeLayerRecord(w, record, doc) {
 
   w.patchUint32(extraLengthAt, w.length - extraStart);
 
-  return { rect, channelIds, lengthSlots, hasMask, isGroup };
+  return { rect, channelIds, lengthSlots, hasMask, mask, isGroup };
 }
 
 /* ------------------------------------------------------------------ */
@@ -2477,11 +2484,12 @@ function serialisableShape(shape) {
 
 function writeChannelData(w, record, plan, doc) {
   const { layer } = record;
-  const { rect, channelIds, lengthSlots, hasMask } = plan;
+  const { rect, channelIds, lengthSlots, mask } = plan;
 
   let planes = null;
   if (rect) {
-    planes = planesOf(layer.canvas, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
+    const source = layer.getPixelSource();
+    planes = planesOf(source.canvas, rect.left - source.x, rect.top - source.y, rect.right - rect.left, rect.bottom - rect.top);
   }
   const rw = rect ? rect.right - rect.left : 0;
   const rh = rect ? rect.bottom - rect.top : 0;
@@ -2490,8 +2498,8 @@ function writeChannelData(w, record, plan, doc) {
     const id = channelIds[i];
     let written;
     if (id === -2) {
-      written = hasMask && layer.mask
-        ? writeChannel(w, maskPlane(layer.mask, doc.width, doc.height), doc.width, doc.height)
+      written = mask
+        ? writeChannel(w, maskPlane(mask.canvas, mask.canvas.width, mask.canvas.height), mask.canvas.width, mask.canvas.height)
         : writeEmptyChannel(w);
     } else if (!planes) {
       written = writeEmptyChannel(w);

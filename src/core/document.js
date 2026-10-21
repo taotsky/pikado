@@ -1,10 +1,74 @@
 import { Emitter } from './emitter.js';
 import {
-  Layer, LayerType, createRasterLayer, mapLayerGeometry, translateLayerGeometry,
+  Layer, createRasterLayer, mapLayerGeometry,
+  checkPixelAllocation, pixelSourceBounds, transformPixelSource,
 } from './layer.js';
 import { Selection } from './selection.js';
 import { History } from './history.js';
-import { uid, createCanvas, cloneCanvas, ctx2d } from './util.js';
+import { uid, createCanvas } from './util.js';
+
+function mapPoint(matrix, x, y) {
+  return { x: matrix[0] * x + matrix[2] * y + matrix[4], y: matrix[1] * x + matrix[3] * y + matrix[5] };
+}
+
+function mapSmartPayload(smart, matrix) {
+  if (!smart) return smart;
+  const [a, b, c, d, e, f] = smart.transform?.matrix || [1, 0, 0, 1, 0, 0];
+  const m = matrix;
+  return { ...smart, transform: { ...smart.transform, matrix: [
+    m[0] * a + m[2] * b, m[1] * a + m[3] * b,
+    m[0] * c + m[2] * d, m[1] * c + m[3] * d,
+    m[0] * e + m[2] * f + m[4], m[1] * e + m[3] * f + m[5],
+  ] } };
+}
+
+function mapDocumentPaths(paths, matrix) {
+  const out = structuredClone(paths);
+  for (const path of out) for (const subpath of path.subpaths || []) for (const point of subpath.points || []) {
+    Object.assign(point, mapPoint(matrix, point.x, point.y));
+    if (point.in) point.in = mapPoint(matrix, point.in.x, point.in.y);
+    if (point.out) point.out = mapPoint(matrix, point.out.x, point.out.y);
+  }
+  return out;
+}
+
+/** Prepare every output before changing the document or any history-shared data. */
+function prepareGeometry(doc, matrix, width, height, smoothing = 'high', clip = false, sizeScale = 1) {
+  const layers = doc.flatLayers();
+  const target = { width, height, memoryLimitMB: doc.memoryLimitMB };
+  let outputPixels = 0;
+  for (const layer of layers) for (const source of [layer.getPixelSource(), layer.getMaskSource()]) {
+    const rect = pixelSourceBounds(source, matrix, clip ? target : null);
+    if (rect) {
+      checkPixelAllocation(rect.width, rect.height);
+      outputPixels += rect.width * rect.height;
+    }
+  }
+  checkPixelAllocation(width, height, doc.memoryUse() / 4 + outputPixels + width * height,
+    (doc.memoryLimitMB || 512) * 1048576);
+  const prepared = layers.map((layer) => {
+    const geometry = { text: layer.text, shape: layer.shape };
+    mapLayerGeometry(geometry, (x, y) => mapPoint(matrix, x, y), sizeScale);
+    return { layer, geometry, smart: mapSmartPayload(layer.smart, matrix),
+      pixels: transformPixelSource(layer.getPixelSource(), matrix, target, { smoothing, clip }),
+      mask: transformPixelSource(layer.getMaskSource(), matrix, target, { smoothing, clip }) };
+  });
+  return { target, prepared, paths: mapDocumentPaths(doc.paths, matrix) };
+}
+
+function applyGeometry(doc, state) {
+  for (const { layer, geometry, smart, pixels, mask } of state.prepared) {
+    layer.setDocumentSize(state.target.width, state.target.height);
+    if (pixels) layer.setPixelSource(pixels.canvas, pixels.x, pixels.y);
+    if (mask) layer.setMaskSource(mask.canvas, mask.x, mask.y, mask.defaultValue);
+    layer.text = geometry.text;
+    layer.shape = geometry.shape;
+    layer.smart = smart;
+  }
+  doc.width = state.target.width;
+  doc.height = state.target.height;
+  doc.paths = state.paths;
+}
 
 /**
  * A Pikado document.
@@ -72,10 +136,11 @@ export class PikaDocument extends Emitter {
       doc.layers.push(l);
       doc.activeLayerId = l.id;
     } else {
-      const bg = createRasterLayer(width, height, 'Background');
-      const c = bg.canvas.getContext('2d');
+      const canvas = createCanvas(width, height);
+      const c = canvas.getContext('2d');
       c.fillStyle = fill;
       c.fillRect(0, 0, width, height);
+      const bg = new Layer({ name: 'Background', canvas });
       bg.isBackground = true;
       bg.locked = { ...bg.locked, position: true };
       doc.layers.push(bg);
@@ -90,8 +155,9 @@ export class PikaDocument extends Emitter {
     const w = img.naturalWidth || img.width;
     const h = img.naturalHeight || img.height;
     const doc = new PikaDocument({ width: w, height: h, name });
-    const l = createRasterLayer(w, h, 'Background');
-    l.canvas.getContext('2d').drawImage(img, 0, 0);
+    const canvas = createCanvas(w, h);
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    const l = new Layer({ name: 'Background', canvas });
     l.isBackground = true;
     doc.layers.push(l);
     doc.activeLayerId = l.id;
@@ -176,6 +242,7 @@ export class PikaDocument extends Emitter {
   /** Insert `layer` above the active layer (or at `index` in `parentList`). */
   addLayer(layer, opts = {}) {
     const { above = this.activeLayer(), parent = null, index = null } = opts;
+    for (const child of this.flatLayers([layer])) child.setDocumentSize(this.width, this.height);
     layer.parent = parent;
     if (index != null) {
       const list = parent ? parent.children : this.layers;
@@ -305,7 +372,10 @@ export class PikaDocument extends Emitter {
 
   invalidate() {
     this._compositeValid = false;
-    for (const l of this.flatLayers()) l.thumbDirty = true;
+    for (const l of this.flatLayers()) {
+      if (l._docWidth !== this.width || l._docHeight !== this.height) l.setDocumentSize(this.width, this.height);
+      l.thumbDirty = true;
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -404,30 +474,13 @@ export class PikaDocument extends Emitter {
   resample(w, h, smoothing = 'high') {
     w = Math.max(1, Math.round(w));
     h = Math.max(1, Math.round(h));
-    const scaleCanvas = (src) => {
-      if (!src) return null;
-      const out = createCanvas(w, h);
-      const c = out.getContext('2d');
-      c.imageSmoothingEnabled = smoothing !== 'nearest';
-      c.imageSmoothingQuality = smoothing === 'nearest' ? 'low' : smoothing;
-      c.drawImage(src, 0, 0, w, h);
-      return out;
-    };
     const sx = w / this.width, sy = h / this.height;
-    for (const l of this.flatLayers()) {
-      l.beginEdit();
-      if (l.canvas) l.canvas = scaleCanvas(l.canvas);
-      if (l.mask) { l.mask = scaleCanvas(l.mask); l.touchMask(); }
-      mapLayerGeometry(l, (x, y) => ({ x: x * sx, y: y * sy }), sx);
-    }
-    for (const p of this.paths) for (const sp of p.subpaths || []) for (const pt of sp.points || []) {
-      pt.x *= sx; pt.y *= sy;
-      if (pt.in) { pt.in.x *= sx; pt.in.y *= sy; }
-      if (pt.out) { pt.out.x *= sx; pt.out.y *= sy; }
-    }
-    this.width = w;
-    this.height = h;
-    this.selection.resize(w, h);
+    const state = prepareGeometry(this, [sx, 0, 0, sy, 0, 0], w, h, smoothing, false, sx);
+    const selection = new Selection(this.width, this.height);
+    selection.set(this.selection.mask);
+    selection.resize(w, h);
+    applyGeometry(this, state);
+    this.selection = selection;
     this.invalidate();
     this.emit('resize');
   }
@@ -440,29 +493,42 @@ export class PikaDocument extends Emitter {
     const ay = anchor.includes('top') ? 0 : anchor.includes('bottom') ? 1 : 0.5;
     const dx = Math.round((w - this.width) * ax);
     const dy = Math.round((h - this.height) * ay);
-    const shift = (src, fillWhite) => {
-      if (!src) return null;
-      const out = createCanvas(w, h);
-      const c = out.getContext('2d');
-      if (fillWhite) { c.fillStyle = '#fff'; c.fillRect(0, 0, w, h); }
-      c.drawImage(src, dx, dy);
-      return out;
-    };
-    for (const l of this.flatLayers()) {
-      l.beginEdit();
-      if (l.canvas) l.canvas = shift(l.canvas, false);
-      if (l.mask) { l.mask = shift(l.mask, true); l.touchMask(); }
-      translateLayerGeometry(l, dx, dy);
+    checkPixelAllocation(w, h, this.memoryUse() / 4 + w * h, (this.memoryLimitMB || 512) * 1048576);
+    const matrix = [1, 0, 0, 1, dx, dy];
+    const paths = mapDocumentPaths(this.paths, matrix);
+    const layers = this.flatLayers().map((layer) => {
+      const pixels = layer.getPixelSource(), mask = layer.getMaskSource();
+      for (const source of [pixels, mask]) if (source
+        && (!Number.isSafeInteger(source.x + dx) || !Number.isSafeInteger(source.y + dy))) {
+        throw new Error('画布尺寸调整后图层位置无效');
+      }
+      const geometry = { text: layer.text, shape: layer.shape };
+      mapLayerGeometry(geometry, (x, y) => mapPoint(matrix, x, y));
+      return { layer, geometry, smart: mapSmartPayload(layer.smart, matrix), pixels, mask };
+    });
+    const selection = new Selection(w, h);
+    if (this.selection.mask) {
+      const next = new Uint8ClampedArray(w * h);
+      for (let y = 0; y < h; y++) {
+        const sy = y - dy;
+        if (sy < 0 || sy >= this.height) continue;
+        const left = Math.max(0, dx), right = Math.min(w, this.width + dx);
+        if (right > left) next.set(this.selection.mask.subarray(sy * this.width + left - dx, sy * this.width + right - dx), y * w + left);
+      }
+      selection.set(next);
     }
-    for (const p of this.paths) for (const sp of p.subpaths || []) for (const pt of sp.points || []) {
-      pt.x += dx; pt.y += dy;
-      if (pt.in) { pt.in.x += dx; pt.in.y += dy; }
-      if (pt.out) { pt.out.x += dx; pt.out.y += dy; }
+    for (const { layer, geometry, smart, pixels, mask } of layers) {
+      layer.setDocumentSize(w, h);
+      if (pixels) layer.setPixelSource(pixels.canvas, pixels.x + dx, pixels.y + dy);
+      if (mask) layer.setMaskSource(mask.canvas, mask.x + dx, mask.y + dy, mask.defaultValue);
+      layer.text = geometry.text;
+      layer.shape = geometry.shape;
+      layer.smart = smart;
     }
     this.width = w;
     this.height = h;
-    this.selection.resize(w, h);
-    if (this.selection.mask) this.selection.translate(dx, dy);
+    this.paths = paths;
+    this.selection = selection;
     this.invalidate();
     this.emit('resize');
   }
@@ -470,69 +536,39 @@ export class PikaDocument extends Emitter {
   crop(rect) {
     const { x, y, width, height } = rect;
     const w = Math.max(1, Math.round(width)), h = Math.max(1, Math.round(height));
-    const cut = (src) => {
-      if (!src) return null;
-      const out = createCanvas(w, h);
-      out.getContext('2d').drawImage(src, -Math.round(x), -Math.round(y));
-      return out;
-    };
-    for (const l of this.flatLayers()) {
-      l.beginEdit();
-      if (l.canvas) l.canvas = cut(l.canvas);
-      if (l.mask) { l.mask = cut(l.mask); l.touchMask(); }
-      translateLayerGeometry(l, -Math.round(x), -Math.round(y));
-    }
-    for (const p of this.paths) for (const sp of p.subpaths || []) for (const pt of sp.points || []) {
-      pt.x -= x; pt.y -= y;
-      if (pt.in) { pt.in.x -= x; pt.in.y -= y; }
-      if (pt.out) { pt.out.x -= x; pt.out.y -= y; }
-    }
-    this.width = w;
-    this.height = h;
-    this.selection = new Selection(w, h);
+    const state = prepareGeometry(this, [1, 0, 0, 1, -Math.round(x), -Math.round(y)], w, h, 'nearest', true);
+    const selection = new Selection(w, h);
+    applyGeometry(this, state);
+    this.selection = selection;
+    this.invalidate();
+    this.emit('resize');
+  }
+
+  /** Apply an affine map to the complete document; clipping is an explicit crop. */
+  transformAffine(matrix, width = this.width, height = this.height, { clip = false } = {}) {
+    const values = Array.isArray(matrix) ? matrix : [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f];
+    const state = prepareGeometry(this, values, width, height, 'high', clip);
+    const selection = new Selection(width, height);
+    applyGeometry(this, state);
+    this.selection = selection;
     this.invalidate();
     this.emit('resize');
   }
 
   /** Flip or rotate the whole image. */
   transformImage(kind) {
+    if (!['cw', 'ccw', '180', 'flip-h', 'flip-v'].includes(kind)) throw new Error('整图变换类型无效');
     const swap = kind === 'cw' || kind === 'ccw';
     const w = swap ? this.height : this.width;
     const h = swap ? this.width : this.height;
-    const apply = (src) => {
-      if (!src) return null;
-      const out = createCanvas(w, h);
-      const c = out.getContext('2d');
-      c.save();
-      if (kind === 'cw') { c.translate(w, 0); c.rotate(Math.PI / 2); }
-      else if (kind === 'ccw') { c.translate(0, h); c.rotate(-Math.PI / 2); }
-      else if (kind === '180') { c.translate(w, h); c.rotate(Math.PI); }
-      else if (kind === 'flip-h') { c.translate(w, 0); c.scale(-1, 1); }
-      else if (kind === 'flip-v') { c.translate(0, h); c.scale(1, -1); }
-      c.drawImage(src, 0, 0);
-      c.restore();
-      return out;
-    };
-    // The same transform the canvas gets, in point form. Subpaths follow it
-    // exactly; a text layer has no orientation to rotate, so its anchor lands in
-    // the right place and the glyphs stay upright.
-    const mapPoint = (x, y) => {
-      if (kind === 'cw') return { x: w - y, y: x };
-      if (kind === 'ccw') return { x: y, y: h - x };
-      if (kind === '180') return { x: w - x, y: h - y };
-      if (kind === 'flip-h') return { x: w - x, y };
-      if (kind === 'flip-v') return { x, y: h - y };
-      return { x, y };
-    };
-    for (const l of this.flatLayers()) {
-      l.beginEdit();
-      if (l.canvas) l.canvas = apply(l.canvas);
-      if (l.mask) { l.mask = apply(l.mask); l.touchMask(); }
-      mapLayerGeometry(l, mapPoint);
-    }
-    this.width = w;
-    this.height = h;
-    this.selection = new Selection(w, h);
+    const matrix = kind === 'cw' ? [0, 1, -1, 0, w, 0]
+      : kind === 'ccw' ? [0, -1, 1, 0, 0, h]
+      : kind === '180' ? [-1, 0, 0, -1, w, h]
+      : kind === 'flip-h' ? [-1, 0, 0, 1, w, 0] : [1, 0, 0, -1, 0, h];
+    const state = prepareGeometry(this, matrix, w, h, 'nearest');
+    const selection = new Selection(w, h);
+    applyGeometry(this, state);
+    this.selection = selection;
     this.invalidate();
     this.emit('resize');
   }
@@ -566,7 +602,7 @@ export class PikaDocument extends Emitter {
       // size, which is the number that matters.
       if (l._full) add(l._full);
       else if (l._tile) add(l._tile.canvas);
-      add(l.mask);
+      add(l.getMaskSource()?.canvas);
       /*
        * The derived caches count too. `_maskAlpha` is a whole extra
        * document-sized canvas per masked layer, and a smart layer's render cache

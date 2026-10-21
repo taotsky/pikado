@@ -95,7 +95,7 @@ async function smoke() {
     await first.call('download-project');
     assert(capturedDownload?.name === 'red.pkd', 'download-project uses the active document filename');
     const bytes = await (await fetch(capturedDownload.href)).arrayBuffer();
-    assert(new TextDecoder().decode(bytes.slice(0, 8)) === 'PIKADO01', 'download-project serializes a real native project');
+    assert(new TextDecoder().decode(bytes.slice(0, 8)) === 'PIKADO02', 'download-project serializes a real native project');
     const pkd = await first.iframe.contentWindow.eval(`import(${JSON.stringify(new URL('../src/io/pkd.js', location.href).href)})`);
     const back = await pkd.loadPKD(bytes);
     assert(back.layers.length === 2 && back.layers[0].canvas.getContext('2d').getImageData(0, 0, 1, 1).data[0] === 255, 'downloaded project reopens with expected layers and pixels');
@@ -114,7 +114,7 @@ async function smoke() {
   const locked = await navigator.locks.request(`pikado:vbd:${encodeURIComponent(runId)}:${encodeURIComponent(runId)}`, { ifAvailable: true }, (lock) => !lock);
   assert(locked, 'another writer cannot acquire the active project Web Lock');
   const live = first.iframe.contentWindow.pikado.activeDoc;
-  const layerCanvas = live.layers[0].canvas;
+  const layerCanvas = live.layers[0].getPixelSource().canvas;
   const originalToBlob = layerCanvas.toBlob;
   layerCanvas.toBlob = () => { throw new Error('injected storage encoding failure'); };
   live.touch('save failure test');

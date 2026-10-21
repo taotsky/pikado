@@ -39,6 +39,12 @@ import './suites/i18n-dialogs.test.js';
 import './suites/i18n-ui.test.js';
 import './suites/i18n-features.test.js';
 import './suites/theme.test.js';
+import './suites/off-canvas-core.test.js';
+import './suites/off-canvas-edit.test.js';
+import './suites/off-canvas-io.test.js';
+import './suites/off-canvas-document.test.js';
+import './suites/off-canvas-move.test.js';
+import './suites/off-canvas-nonlinear.test.js';
 
 const out = document.getElementById('out');
 const summary = document.getElementById('summary');
@@ -100,6 +106,7 @@ function renderSummary(report, done) {
   await new Promise((r) => setTimeout(r, 60));
 
   const report = await runAll({
+    filter: new URLSearchParams(location.search).get('suite'),
     onProgress: (entry, rep) => {
       out.append(renderSuite(entry));
       renderSummary(rep, false);

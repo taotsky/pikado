@@ -32,9 +32,7 @@ function flatDoc(t, r = 200, g = 120, b = 40) {
   const doc = t.doc(40, 30, null, 'channels');
   doc.layers.length = 0;
   const layer = createRasterLayer(doc.width, doc.height, 'flat');
-  const c = ctx2d(layer.canvas);
-  c.fillStyle = `rgb(${r},${g},${b})`;
-  c.fillRect(0, 0, doc.width, doc.height);
+  t.fill(layer, `rgb(${r},${g},${b})`);
   doc.layers.push(layer);
   doc.invalidate();
   return doc;
@@ -153,9 +151,7 @@ suite('channels / the view composite is cached but never stale', async (t) => {
 
   // Now change the pixels underneath: the cache keys on the composite it was
   // built from, so a repaint has to invalidate it.
-  const c = ctx2d(doc.layers[0].canvas);
-  c.fillStyle = 'rgb(10,20,30)';
-  c.fillRect(0, 0, doc.width, doc.height);
+  t.fill(doc.layers[0], 'rgb(10,20,30)');
   doc.invalidate();
   t.eq(centre(getViewComposite(doc)), [10, 20, 0, 255], 'editing the document refreshes the channel view');
 });

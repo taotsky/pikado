@@ -245,8 +245,7 @@ function installFonts() {
       if (!affected.length) continue;
       for (const l of affected) {
         // Not a history step: the document did not change, its font arrived.
-        const cv = await rasterizeTextLayer(l, doc);
-        if (cv) l.canvas = cv;
+        await rasterizeTextLayer(l, doc);
         l.thumbDirty = true;
       }
       doc.invalidate();

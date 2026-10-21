@@ -13,32 +13,23 @@ are relative and **must include the `.js` extension**.
 
 1. **`doc.layers[0]` is the TOP-most layer.** The compositor walks the array
    backwards. Groups nest through `layer.children`, same ordering.
-2. **Never draw into `layer.canvas` or `layer.mask` without calling
-   `doc.beginEdit(layer)` first.** History snapshots share those buffers;
-   `beginEdit` swaps in a private copy. Then call `doc.commit('Label')` to
-   record the undo step, or `doc.touch()` for a live preview with no history.
-   Pass `{ surface: 'canvas' }` or `{ surface: 'mask' }` when you are only
-   writing one of them — forking both is the default and is safe, but it keeps a
-   byte-identical copy of the untouched buffer alive in every later snapshot.
-   **`doc.selection.mask` is shared the same way**, so no method on `Selection`
-   may write into an existing mask; replace the array instead.
-3. **`layer.canvas` is always document-sized — but the pixels behind it may not
-   be.** A layer can hold a compact `tile` instead: its pixels at their natural
-   size plus where they sit. Reading `.canvas` materialises the tile and gives up
-   the compact form, so anything on a hot path — `snapshot()`, `thumbnail()`,
-   `contentBounds()`, `memoryUse()`, hit testing, the compositor's fast path —
-   must go through `layer.tile` instead, or the whole document expands on the
-   first commit or the first frame. Caches keyed on a layer's pixels must key on
-   `layer.pixelKey()`, never on `layer.canvas`: reading the key would otherwise
-   be what expands the layer. Snapping measures every layer in the document on
-   every drag, so this is not hypothetical. A 60-layer 4000×3000 PSD opens in 99 MB compact and 3.6 GB
-   expanded, so this is the difference between the file opening and not.
-4. **A layer's canvas may be SHARED with another layer.** `beginEdit()` clones
-   before any write, which is what makes sharing safe — the PSD importer hands
-   every pixel-less layer one blank canvas rather than allocating a
-   document-sized buffer each. So never write to `layer.canvas` without
-   `doc.beginEdit(layer)`, and never assume two layers with different pixels have
-   different buffers. Anything counting memory must count distinct buffers.
+2. **Pixel sources are immutable once installed.** `getPixelSource()` and
+   `getMaskSource()` borrow complete buffers and document-space positions.
+   Draw on a private work projection, then use `commitPixelRegion()` or
+   `commitMaskRegion()` to replace only the edited document-space rectangle,
+   including transparent pixels. These commits install private buffers; use
+   `doc.commit('Label')` for history and layer previews during live gestures.
+   `beginEdit()` only marks edit metadata. **`doc.selection.mask` is also shared**;
+   selection mutators must replace its array rather than mutate it in place.
+3. **`layer.canvas` and `layer.mask` are disposable document-sized projections.**
+   Reading them never discards complete source pixels outside the document.
+   Writing to a projection does not edit the layer until explicitly committed.
+   Use `setPixelSource()` / `setMaskSource()` for deliberate complete replacements
+   with an explicit position. Pure moves update positions without resampling.
+   Masks carry an independent position and default coverage outside their buffer.
+4. **Sources may be shared by layers and history.** Count distinct buffers for
+   memory. Cache local bounds by `pixelKey()` and add each layer's current position
+   when reading document-space bounds; never cache positions by buffer identity.
 5. **If you transform a layer's pixels, transform its authored geometry too.**
    Text and shape layers can be re-rendered from `layer.text` and
    `layer.shape` at any moment, so those parameters have to describe where the
@@ -194,17 +185,23 @@ layer.styles   // layer effects, see effects/styles.js
 layer.text layer.shape layer.adjustment layer.smart   // type payloads
 layer.isBackground  layer.editingMask
 
-layer.beginEdit()          // COW — prefer doc.beginEdit(layer)
-layer.paintTarget()        // canvas OR mask depending on editingMask
+layer.beginEdit()          // edit metadata; region commits own COW
+layer.paintTarget()        // disposable document-space pixel OR mask projection
 layer.ensureCanvas(w,h)    layer.getContext()
+layer.getPixelSource()     layer.getMaskSource()  // borrowed immutable sources
+layer.projectPixels(doc?)  layer.projectMask(doc?)
+layer.setPixelSource(canvas,x,y,doc?)
+layer.setMaskSource(canvas,x,y,defaultValue,doc?)
+layer.commitPixelRegion(doc,rect,pixels)  layer.commitMaskRegion(doc,rect,pixels)
+layer.translatePixels(dx,dy,doc?)        layer.translateMask(dx,dy,doc?)
 layer.addMask(w,h,fill?)   layer.removeMask()   layer.touchMask()
 layer.maskAlphaCanvas()    // cached alpha-only clip source
 layer.clone(newIds = true)  layer.contentBounds()  layer.thumbnail(size)
 layer.snapshot()           Layer.fromSnapshot(s)   // used by history only
 ```
 What `snapshot()` copies matters. `styles`, `text`, `shape` and `adjustment` are
-`structuredClone`d, so editing them in place is safe. `canvas` and `mask` are
-shared references — that is the whole point of copy-on-write, hence rule 2.
+`structuredClone`d, so editing them in place is safe. Complete pixel and mask
+sources are shared with immutable position records, hence rule 2.
 **`smart` is a shallow copy (`{...this.smart}`)**, so every history state shares
 one payload object and its `filters` array; `core/smart.js` therefore always
 installs a brand-new payload instead of mutating. `structuredClone` also means
@@ -934,20 +931,11 @@ canvas, generating noise that must not swim between dabs). Deriving the rect fro
 `x - size/2` is wrong at the canvas border, where clamping has already happened.
 `op` may mutate `region` in place or return a new `ImageData` of the same size.
 
-Typical paint tool flow:
-```js
-onPointerDown(e) {
-  if (!this.canPaint()) return;
-  const doc = this.doc, layer = doc.activeLayer();
-  doc.beginEdit(layer);                       // COW before any pixels change
-  this.stroke = new PaintStroke({...});
-  this.stroke.onFrame = () => { this.stroke.flush(); doc.touch(); };
-  this.stroke.begin(e.x, e.y, e.pressure);
-  this.stroke.flush(); doc.touch();
-}
-onPointerMove(e) { if (this.stroke) { this.stroke.move(e.x,e.y,e.pressure); this.stroke.flush(); this.doc.touch(); } }
-onPointerUp() { if (this.stroke) { this.stroke.end(); this.stroke.flush(); this.doc.commit('Brush Tool'); this.stroke = null; } }
-```
+Continuous paint tools extend `BrushToolBase`: `makeStroke` receives a private
+document-space target, previews stay separate from the source, and pointer-up
+commits the dirty region once. Cancellation discards the work target and preview.
+Independent pixel tools use `paintSurface` / `commitPaintSurface` from
+`src/edit/pixels.js`; transparent pixels must overwrite the corresponding region.
 
 ## Layer operations — `src/layers/ops.js`
 

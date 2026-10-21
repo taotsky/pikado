@@ -15,8 +15,9 @@
  */
 
 import { uid, createCanvas, ctx2d } from '../core/util.js';
+import { commitPaintSurface } from '../edit/pixels.js';
 import { Selection } from '../core/selection.js';
-import { Layer, LayerType } from '../core/layer.js';
+import { Layer, LayerType, checkPixelAllocation } from '../core/layer.js';
 
 /* ------------------------------------------------------------------ */
 /* Model                                                               */
@@ -760,7 +761,7 @@ function normalizeStroke(shape) {
   return st;
 }
 
-function strokeInto(destCtx, p2, st, w, h) {
+function strokeInto(destCtx, p2, st, w, h, originX = 0, originY = 0) {
   const lw = Math.max(0.05, st.width == null ? 1 : st.width);
   const align = st.align || 'center';
   const paint = (c, width) => {
@@ -778,12 +779,13 @@ function strokeInto(destCtx, p2, st, w, h) {
   if (align === 'center') { paint(destCtx, lw); return; }
   const tmp = createCanvas(w, h);
   const tc = ctx2d(tmp);
+  tc.translate(-originX, -originY);
   paint(tc, lw * 2);
   tc.globalCompositeOperation = align === 'inside' ? 'destination-in' : 'destination-out';
   tc.fillStyle = '#000';
   tc.fill(p2, 'nonzero');
   tc.globalCompositeOperation = 'source-over';
-  destCtx.drawImage(tmp, 0, 0);
+  destCtx.drawImage(tmp, originX, originY);
 }
 
 /**
@@ -807,7 +809,7 @@ export function pathToSelectionMask(path, w, h, opts = {}) {
 }
 
 /**
- * Render a shape layer into a document-sized canvas.
+ * Store the complete rendered shape and return a document-space preview.
  * Called by `src/layers/ops.js` and by every shape/pen tool after an edit.
  * @param {import('../core/layer.js').Layer} layer
  * @param {import('../core/document.js').PikaDocument} doc
@@ -816,13 +818,23 @@ export function pathToSelectionMask(path, w, h, opts = {}) {
 export function rasterizeShapeLayer(layer, doc) {
   const w = doc ? doc.width : 1;
   const h = doc ? doc.height : 1;
-  const cv = createCanvas(w, h);
   const shape = layer && layer.shape;
-  if (!shape || !shape.subpaths || !shape.subpaths.length) return cv;
-
-  const c = ctx2d(cv);
-  const p2 = subpathsToPath2D(shape.subpaths);
+  if (!shape || !shape.subpaths || !shape.subpaths.length) {
+    const empty = createCanvas(1, 1);
+    if (layer) layer.setPixelSource(empty, 0, 0, doc);
+    return layer ? layer.projectPixels(doc) : createCanvas(w, h);
+  }
   const box = subpathsBounds(shape.subpaths) || { x: 0, y: 0, width: w, height: h };
+  const st = normalizeStroke(shape);
+  const pad = Math.ceil(st ? st.width * (st.join === 'round' || st.join === 'bevel' ? 1 : st.miterLimit || 10) + 2 : 1);
+  const x = Math.floor(box.x - pad), y = Math.floor(box.y - pad);
+  const width = Math.max(1, Math.ceil(box.x + box.width + pad) - x);
+  const height = Math.max(1, Math.ceil(box.y + box.height + pad) - y);
+  checkPixelAllocation(width, height, w * h, (doc?.memoryLimitMB || 512) * 1048576);
+  const cv = createCanvas(width, height);
+  const c = ctx2d(cv);
+  c.translate(-x, -y);
+  const p2 = subpathsToPath2D(shape.subpaths);
 
   const fill = normalizeFill(shape);
   if (fill) {
@@ -836,9 +848,9 @@ export function rasterizeShapeLayer(layer, doc) {
     }
   }
 
-  const st = normalizeStroke(shape);
-  if (st) strokeInto(c, p2, st, w, h);
-  return cv;
+  if (st) strokeInto(c, p2, st, width, height, x, y);
+  layer.setPixelSource(cv, x, y, doc);
+  return layer.projectPixels(doc);
 }
 
 /* ------------------------------------------------------------------ */
@@ -869,14 +881,14 @@ export function createShapeLayer(doc, subpaths, style = {}, name = 'Shape') {
   for (const k of ['radius', 'corners', 'sides', 'star', 'innerRadius', 'smoothCorners', 'shapeId', 'weight', 'geometry']) {
     if (style[k] !== undefined) l.shape[k] = style[k];
   }
-  l.canvas = rasterizeShapeLayer(l, doc);
+  rasterizeShapeLayer(l, doc);
   return l;
 }
 
 /** Re-run rasterisation after `layer.shape` changed. Caller owns beginEdit. */
 export function refreshShapeLayer(doc, layer) {
   if (!layer || layer.type !== LayerType.SHAPE) return;
-  layer.canvas = rasterizeShapeLayer(layer, doc);
+  rasterizeShapeLayer(layer, doc);
   layer.thumbDirty = true;
 }
 
@@ -933,6 +945,7 @@ export function paintSubpathsOnLayer(doc, layer, subpaths, style = {}) {
     tc.globalCompositeOperation = 'source-over';
   }
   ctx2d(target).drawImage(tmp, 0, 0);
+  commitPaintSurface(doc, layer, target, doc.selection.active ? doc.selection.bounds() : null);
 }
 
 /* ------------------------------------------------------------------ */

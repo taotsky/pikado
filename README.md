@@ -91,8 +91,8 @@ something it cannot use.
 Nothing that arrives this way is cropped. A drop opens at the image's own pixel
 size, and an image placed or pasted into a document too small to hold it is
 scaled down whole rather than having its edges cut off by the canvas edge — a
-layer buffer is document-sized, so pixels pushed outside it are not stored
-anywhere, and used to be lost in silence.
+layer sources retain pixels outside the document. Moving a layer beyond an edge
+and back preserves its complete contents, including across project saves.
 
 ### Between two of your own tabs
 
@@ -356,10 +356,8 @@ in one click, Tween fills in the frames between two, and each frame carries its
 own delay. Export as GIF and it animates automatically, with each frame given its
 own colour table so a changing palette does not band.
 
-What it does not animate is *position*: layer buffers here are always
-document-sized with no per-layer offset, so there is nowhere for a per-frame
-position to live. Move something by duplicating the layer, or cross-fade by
-animating opacity.
+What it does not animate is *position*: positions are shared across frames.
+Move something by duplicating the layer, or cross-fade by animating opacity.
 
 ## Colour management
 
@@ -525,8 +523,8 @@ Three conventions matter throughout:
 
 1. **`doc.layers[0]` is the top layer.** The compositor walks the array
    backwards.
-2. **Never touch `layer.canvas` without `doc.beginEdit(layer)` first.** History
-   snapshots share those buffers; `beginEdit` swaps in a private copy.
+2. **Never mutate installed pixel sources.** Edit a private projection and commit
+   its changed region; `.canvas` and `.mask` are disposable document projections.
 3. **Every module self-registers on import.** `main.js` imports modules purely
    for the side effect; registries do the wiring.
 
@@ -657,11 +655,8 @@ Stated plainly so you don't find out by clicking:
   profile parses but cannot be attached, because there is no four-channel pixel
   carrier — and the message says exactly that rather than blaming the profile.
 - **Position in a frame animation.** The timeline animates visibility and opacity.
-  Layer buffers here are always document-sized with no per-layer offset, so there
-  is nowhere for a per-frame position to live and nothing in the compositor that
-  would honour one — a control that stored a number and moved nothing would be
-  worse than its absence. Duplicate the layer to move something, or animate
-  opacity to cross-fade.
+  Layer positions are shared across frames. Duplicate the layer to move
+  something, or animate opacity to cross-fade.
 - **Face detection.** Liquify has the face-aware sliders — sixteen of them,
   covering eyes, nose, mouth and face shape — but nothing finds the face for
   you: select it, and the sliders act on that region. There is no

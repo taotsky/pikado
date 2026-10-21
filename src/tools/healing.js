@@ -1,4 +1,5 @@
 import { t } from '../i18n.js';
+import { commitPaintSurface } from '../edit/pixels.js';
 import { Tool, registerTool } from './base.js';
 import { app } from '../core/app.js';
 import { EffectStroke, brushOptionDescriptors, brushFromOptions } from '../paint/brush-engine.js';
@@ -352,8 +353,7 @@ class SpotHealingTool extends BrushToolBase {
     });
   }
 
-  makeStroke(e, doc, layer) {
-    const target = layer.paintTarget();
+  makeStroke(e, doc, layer, target) {
     const readCtx = ctx2dRead(target);
     const type = this.state.type;
     return new EffectStroke({
@@ -439,8 +439,7 @@ class HealingBrushTool extends BrushToolBase {
     return true;
   }
 
-  makeStroke(e, doc, layer) {
-    const target = layer.paintTarget();
+  makeStroke(e, doc, layer, target) {
     const usePattern = this.state.source === 'pattern';
     let dx = 0, dy = 0;
     let sourceCanvas;
@@ -864,7 +863,7 @@ class PatchTool extends Tool {
     }
 
     surface.getContext('2d').putImageData(dstImg, bx, by);
-    if (layer.editingMask) layer.touchMask();
+    commitPaintSurface(doc, layer, surface, { x: bx, y: by, width: bw, height: bh });
     doc.commit('Patch');
   }
 
@@ -1067,7 +1066,7 @@ class RedEyeTool extends Tool {
       return;
     }
     surface.getContext('2d').putImageData(img, x0, y0);
-    if (layer.editingMask) layer.touchMask();
+    commitPaintSurface(doc, layer, surface, { x: x0, y: y0, width: w, height: h });
     doc.commit('Red Eye Removal');
   }
 

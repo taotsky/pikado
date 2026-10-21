@@ -48,7 +48,7 @@ class ToneTool extends BrushToolBase {
     this.kind = kind;
   }
 
-  makeStroke(e, doc, layer) {
+  makeStroke(e, doc, layer, target) {
     const kind = this.kind;
     const range = this.state.range;
     const protect = this.state.protectTones;
@@ -56,7 +56,7 @@ class ToneTool extends BrushToolBase {
     return new EffectStroke({
       doc,
       layer,
-      target: layer.paintTarget(),
+      target,
       brush: brushFromOptions(this.state, { flow: 1, spacing: 0.14 }),
       strength: this.state.exposure / 100,
       op: (region, meta) => {
@@ -124,14 +124,14 @@ class SpongeTool extends BrushToolBase {
     });
   }
 
-  makeStroke(e, doc, layer) {
+  makeStroke(e, doc, layer, target) {
     const saturate = this.state.mode === 'saturate';
     const vibrance = this.state.vibrance;
 
     return new EffectStroke({
       doc,
       layer,
-      target: layer.paintTarget(),
+      target,
       brush: brushFromOptions(this.state, { flow: 1, spacing: 0.14 }),
       strength: this.state.flow / 100,
       op: (region, meta) => {

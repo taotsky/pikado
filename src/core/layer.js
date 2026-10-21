@@ -51,13 +51,126 @@ export const LayerType = {
   SMART: 'smart',
 };
 
+export const MAX_PIXEL_EDGE = 32767;
+export const MAX_PIXEL_AREA = 67108864;
+
+/** Check the output and live input buffers before allocating a replacement. */
+export function checkPixelAllocation(width, height, extraPixels = 0, budgetBytes = 512 * 1048576) {
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1
+    || width > MAX_PIXEL_EDGE || height > MAX_PIXEL_EDGE || width * height > MAX_PIXEL_AREA
+    || !Number.isFinite(extraPixels) || extraPixels < 0 || !Number.isFinite(budgetBytes) || budgetBytes <= 0
+    || (width * height + extraPixels) * 4 > budgetBytes) {
+    throw new Error('图层像素超出尺寸或内存预算，原有内容未修改');
+  }
+}
+
+function position(x, y) {
+  if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y)) throw new Error('图层位置必须为有效整数');
+}
+
+function affineValues(matrix) {
+  const values = Array.isArray(matrix) ? matrix : [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f];
+  if (values.length !== 6 || !values.every(Number.isFinite)) throw new Error('图层变换矩阵无效');
+  return values;
+}
+
+export function pixelSourceBounds(source, matrix, clipDoc = null) {
+  if (!source) return null;
+  const [a, b, c, d, e, f] = affineValues(matrix);
+  const points = [[source.x, source.y], [source.x + source.canvas.width, source.y],
+    [source.x, source.y + source.canvas.height], [source.x + source.canvas.width, source.y + source.canvas.height]];
+  const snap = (value) => Math.abs(value - Math.round(value)) < 1e-9 ? Math.round(value) : value;
+  const xs = points.map(([x, y]) => snap(a * x + c * y + e));
+  const ys = points.map(([x, y]) => snap(b * x + d * y + f));
+  let x = Math.floor(Math.min(...xs)), y = Math.floor(Math.min(...ys));
+  let right = Math.ceil(Math.max(...xs)), bottom = Math.ceil(Math.max(...ys));
+  if (clipDoc) {
+    x = Math.max(0, x); y = Math.max(0, y);
+    right = Math.min(clipDoc.width, right); bottom = Math.min(clipDoc.height, bottom);
+  }
+  position(x, y);
+  position(right, bottom);
+  if (right <= x || bottom <= y) return { x: 0, y: 0, width: 1, height: 1, empty: true };
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+/** Resample a complete source in document space, optionally for an explicit crop. */
+export function transformPixelSource(source, matrix, doc = null, options = {}) {
+  if (!source) return null;
+  const rect = pixelSourceBounds(source, matrix, options.clip ? doc : null);
+  checkPixelAllocation(rect.width, rect.height,
+    source.canvas.width * source.canvas.height + (options.extraPixels || 0), (doc?.memoryLimitMB || 512) * 1048576);
+  const canvas = createCanvas(rect.width, rect.height);
+  const ctx = ctx2d(canvas);
+  if (source.defaultValue !== undefined) {
+    ctx.fillStyle = `rgb(${source.defaultValue} ${source.defaultValue} ${source.defaultValue})`;
+    ctx.fillRect(0, 0, rect.width, rect.height);
+  }
+  if (!rect.empty) {
+    const [a, b, c, d, e, f] = affineValues(matrix);
+    ctx.imageSmoothingEnabled = options.smoothing !== 'nearest';
+    ctx.imageSmoothingQuality = options.smoothing === 'nearest' ? 'low' : (options.smoothing || 'high');
+    ctx.setTransform(a, b, c, d, a * source.x + c * source.y + e - rect.x, b * source.x + d * source.y + f - rect.y);
+    ctx.clearRect(0, 0, source.canvas.width, source.canvas.height);
+    ctx.drawImage(source.canvas, 0, 0);
+  }
+  return { canvas, x: rect.x, y: rect.y,
+    ...(source.defaultValue !== undefined ? { defaultValue: source.defaultValue } : {}) };
+}
+
+function projectSource(source, width, height, fill = null) {
+  if (!source) return null;
+  checkPixelAllocation(width, height, source.canvas.width * source.canvas.height);
+  const out = createCanvas(width, height);
+  const c = ctx2d(out);
+  if (fill !== null) {
+    c.fillStyle = `rgb(${fill} ${fill} ${fill})`;
+    c.fillRect(0, 0, width, height);
+    c.clearRect(source.x, source.y, source.canvas.width, source.canvas.height);
+  }
+  c.drawImage(source.canvas, source.x, source.y);
+  return out;
+}
+
+function regionSource(source, rect, pixels, fill, doc, otherSource) {
+  position(rect.x, rect.y);
+  if (!Number.isSafeInteger(rect.width) || !Number.isSafeInteger(rect.height)
+    || rect.width < 1 || rect.height < 1 || pixels.width !== rect.width || pixels.height !== rect.height) {
+    throw new Error('编辑像素与目标区域尺寸不一致');
+  }
+  const x = source ? Math.min(source.x, rect.x) : rect.x;
+  const y = source ? Math.min(source.y, rect.y) : rect.y;
+  const right = Math.max(source ? source.x + source.canvas.width : rect.x, rect.x + rect.width);
+  const bottom = Math.max(source ? source.y + source.canvas.height : rect.y, rect.y + rect.height);
+  position(right, bottom);
+  const width = right - x, height = bottom - y;
+  const sourcePixels = (source ? source.canvas.width * source.canvas.height : 0)
+    + (otherSource ? otherSource.canvas.width * otherSource.canvas.height : 0);
+  const extraPixels = Math.max(sourcePixels, doc.memoryUse ? doc.memoryUse() / 4 : 0)
+    + pixels.width * pixels.height + doc.width * doc.height;
+  checkPixelAllocation(width, height, extraPixels, (doc.memoryLimitMB || 512) * 1048576);
+  const out = createCanvas(width, height);
+  const c = ctx2d(out);
+  if (fill !== null) {
+    c.fillStyle = `rgb(${fill} ${fill} ${fill})`;
+    c.fillRect(0, 0, width, height);
+  }
+  if (source) {
+    c.clearRect(source.x - x, source.y - y, source.canvas.width, source.canvas.height);
+    c.drawImage(source.canvas, source.x - x, source.y - y);
+  }
+  c.clearRect(rect.x - x, rect.y - y, rect.width, rect.height);
+  if (typeof ImageData !== 'undefined' && pixels instanceof ImageData) c.putImageData(pixels, rect.x - x, rect.y - y);
+  else c.drawImage(pixels, rect.x - x, rect.y - y);
+  return { canvas: out, x, y };
+}
+
 /**
  * A single layer.
  *
- * IMPORTANT ownership rule: `canvas` and `mask` are shared with history
- * snapshots. Never draw into them without calling `beginEdit()` first (or
- * `doc.beginEdit(layer)`), which swaps in a private copy so older undo states
- * keep their pixels.
+ * Complete sources are shared with history and treated as immutable. Readers
+ * receive projections; region commits and explicit replacements install private
+ * buffers so older undo states keep their pixels.
  */
 export class Layer {
   constructor(opts = {}) {
@@ -71,31 +184,17 @@ export class Layer {
     this.clipped = !!opts.clipped;
     this.locked = opts.locked || { all: false, pixels: false, position: false, transparency: false };
 
-    /*
-     * Pixels live in exactly one of two forms.
-     *
-     * `_full` is a document-sized buffer, which is what everything in Pikado has
-     * always assumed. `_tile` is the compact form — the pixels at their natural
-     * size plus where they sit — which is how a PSD actually stores a layer and
-     * how it stays cheap. A layer whose content is 120x120 in a 1600x1200
-     * document costs 133x less as a tile, measured.
-     *
-     * Reading `.canvas` materialises a tile into `_full` and drops the tile, so
-     * every one of the ~230 places that read it keep working unchanged. The
-     * saving comes from the layers nobody ever reads that way — in a big PSD you
-     * are only viewing, that is nearly all of them, because the compositor has a
-     * fast path that draws the tile directly (see `tile` below).
-     *
-     * Materialising is one-way on purpose. Once `_full` exists it is what writers
-     * mutate, so the tile can no longer be trusted as the source of truth and is
-     * discarded rather than left to drift.
-     */
+    // Exactly one authoritative pixel buffer; document projections are disposable.
     /** @type {HTMLCanvasElement|null} */
     this._full = opts.canvas || null;
     /** @type {{canvas: HTMLCanvasElement, x: number, y: number}|null} */
     this._tile = opts.tile || null;
-    /** @type {HTMLCanvasElement|null} document-sized greyscale mask (white = visible) */
-    this.mask = opts.mask || null;
+    this._docWidth = opts.docWidth || opts.tile?.docWidth || opts.canvas?.width || opts.mask?.width || 1;
+    this._docHeight = opts.docHeight || opts.tile?.docHeight || opts.canvas?.height || opts.mask?.height || 1;
+    this._mask = opts.mask || null;
+    this.maskX = opts.maskX || 0;
+    this.maskY = opts.maskY || 0;
+    this.maskDefault = opts.maskDefault ?? 0;
     this.maskEnabled = opts.maskEnabled !== false;
     this.maskLinked = opts.maskLinked !== false;
     this.maskInverted = !!opts.maskInverted;
@@ -131,27 +230,91 @@ export class Layer {
 
   /* ------------------------------------------------------------------ */
 
-  /**
-   * The document-sized pixel buffer, materialising a tile if that is all we have.
-   *
-   * Reading this is what costs memory, so the hot paths deliberately do not:
-   * `snapshot()`, `thumb()` and the compositor's fast path all go through `tile`
-   * instead. Anything else can read `.canvas` and get exactly what it always got.
-   */
+  /** A disposable document-space projection. Writers must commit their region. */
   get canvas() {
-    if (this._full) return this._full;
-    if (!this._tile) return null;
-    const { canvas: src, x, y, docWidth, docHeight } = this._tile;
-    const out = createCanvas(docWidth, docHeight);
-    ctx2d(out).drawImage(src, x, y);
-    this._full = out;
-    this._tile = null;
-    return out;
+    return this.projectPixels();
   }
 
   set canvas(cv) {
-    this._full = cv || null;
-    this._tile = null;
+    this.setPixelSource(cv);
+  }
+
+  get mask() { return this.projectMask(); }
+
+  set mask(cv) { this.setMaskSource(cv); }
+
+  /** Borrowed read-only pixels. Never mutate a source returned by this method. */
+  getPixelSource() {
+    return this._tile ? { canvas: this._tile.canvas, x: this._tile.x, y: this._tile.y }
+      : this._full ? { canvas: this._full, x: 0, y: 0 } : null;
+  }
+
+  getMaskSource() {
+    return this._mask ? { canvas: this._mask, x: this.maskX, y: this.maskY, defaultValue: this.maskDefault } : null;
+  }
+
+  setDocumentSize(width, height) {
+    if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1) {
+      throw new Error('文档尺寸无效');
+    }
+    if (width !== this._docWidth || height !== this._docHeight) this._maskAlphaVersion = -1;
+    this._docWidth = width;
+    this._docHeight = height;
+    if (this._tile) this._tile = { ...this._tile, docWidth: width, docHeight: height };
+    this.thumbDirty = true;
+    return this;
+  }
+
+  projectPixels(doc = null) {
+    return projectSource(this.getPixelSource(), doc?.width || this._docWidth, doc?.height || this._docHeight);
+  }
+
+  projectMask(doc = null) {
+    return projectSource(this.getMaskSource(), doc?.width || this._docWidth, doc?.height || this._docHeight, this.maskDefault);
+  }
+
+  /** Explicit complete replacement; takes ownership of an already private buffer. */
+  setPixelSource(canvas, x = 0, y = 0, doc = null) {
+    position(x, y);
+    if (doc) this.setDocumentSize(doc.width, doc.height);
+    this._full = canvas && x === 0 && y === 0 ? canvas : null;
+    this._tile = canvas && !this._full ? { canvas, x, y, docWidth: this._docWidth, docHeight: this._docHeight } : null;
+    this.thumbDirty = true;
+    return this;
+  }
+
+  setMaskSource(canvas, x = 0, y = 0, defaultValue = 0, doc = null) {
+    position(x, y);
+    if (!Number.isInteger(defaultValue) || defaultValue < 0 || defaultValue > 255) throw new Error('蒙版默认覆盖值无效');
+    if (doc) this.setDocumentSize(doc.width, doc.height);
+    this._mask = canvas || null;
+    this.maskX = x;
+    this.maskY = y;
+    this.maskDefault = defaultValue;
+    if (!canvas) this._maskAlpha = null;
+    this.touchMask();
+    return this;
+  }
+
+  translatePixels(dx, dy, doc = null) {
+    const source = this.getPixelSource();
+    if (source) this.setPixelSource(source.canvas, source.x + dx, source.y + dy, doc);
+    return this;
+  }
+
+  translateMask(dx, dy, doc = null) {
+    if (this._mask) this.setMaskSource(this._mask, this.maskX + dx, this.maskY + dy, this.maskDefault, doc);
+    return this;
+  }
+
+  commitPixelRegion(doc, rect, pixels) {
+    const source = regionSource(this.getPixelSource(), rect, pixels, null, doc, this.getMaskSource());
+    return this.setPixelSource(source.canvas, source.x, source.y, doc);
+  }
+
+  commitMaskRegion(doc, rect, pixels) {
+    const source = regionSource(this.getMaskSource(), rect, pixels, this.maskDefault, doc, this.getPixelSource());
+    return this.setMaskSource(source.canvas, source.x, source.y, this.maskDefault, doc);
   }
 
   /**
@@ -169,6 +332,8 @@ export class Layer {
    * document. Replaces whatever was there.
    */
   setTile(src, x, y, docWidth, docHeight) {
+    position(x, y);
+    this.setDocumentSize(docWidth, docHeight);
     this._full = null;
     this._tile = src ? { canvas: src, x, y, docWidth, docHeight } : null;
     this.thumbDirty = true;
@@ -179,7 +344,7 @@ export class Layer {
    * The buffer object currently holding this layer's pixels, whichever form it
    * is in — a stable identity for caching against, without materialising.
    *
-   * Copy-on-write makes this a sound invalidation key: `beginEdit` replaces
+   * Copy-on-write makes this a sound invalidation key: region commits replace
    * whichever buffer exists, so a new object means new pixels. Callers that key
    * a cache on `layer.canvas` instead would expand every layer they merely
    * measured, which is how snapping a layer into place could otherwise cost a
@@ -203,69 +368,34 @@ export class Layer {
   }
 
   ensureCanvas(w, h) {
-    if (!this.canvas) this.canvas = createCanvas(w, h);
-    else if (this.canvas.width !== w || this.canvas.height !== h) {
-      const old = this.canvas;
-      this.canvas = createCanvas(w, h);
-      ctx2d(this.canvas).drawImage(old, 0, 0);
-    }
-    return this.canvas;
+    this.setDocumentSize(w, h);
+    if (!this.pixelKey()) this.setPixelSource(createCanvas(w, h));
+    return this.projectPixels();
   }
 
   getContext() {
-    return this.canvas ? this.canvas.getContext('2d') : null;
+    return this.projectPixels()?.getContext('2d') || null;
   }
 
-  /**
-   * Copy-on-write. Call before mutating pixels so the previous history state
-   * keeps the old buffers.
-   */
-  /**
-   * Fork this layer's buffers before writing to them.
-   *
-   * History snapshots share `canvas` and `mask` by reference, so a writer has to
-   * take a private copy first. `surface` says which one is about to be written:
-   * cloning both is the safe default and stays the default, but it is wrong
-   * often enough to matter.
-   *
-   * `commitSurface` (src/filters/run.js) calls this and then *replaces*
-   * `layer.canvas` outright — so the canvas clone is built and immediately
-   * discarded, and on a masked layer the untouched mask is permanently forked
-   * into a new buffer that every later snapshot then retains. That is 7.7 MB of
-   * byte-identical mask kept alive per filter apply at 1600x1200, for a mask
-   * nobody edited.
-   *
-   * @param {{surface?: 'canvas'|'mask'|'both'}} [opts]
-   */
-  beginEdit(opts = {}) {
-    const surface = opts.surface || 'both';
-    if (surface !== 'mask') {
-      if (this._full) this._full = cloneCanvas(this._full);
-      else if (this._tile) this._tile = { ...this._tile, canvas: cloneCanvas(this._tile.canvas) };
-    }
-    if (this.mask && surface !== 'canvas') {
-      this.mask = cloneCanvas(this.mask);
-      this.maskVersion++;
-      this._maskAlphaVersion = -1;
-    }
+  /** Region commits and complete replacements install private buffers themselves. */
+  beginEdit() {
     this.thumbDirty = true;
     return this;
   }
 
   /** The surface tools should paint into, honouring mask-editing mode. */
   paintTarget() {
-    return this.editingMask && this.mask ? this.mask : this.canvas;
+    return this.editingMask && this._mask ? this.projectMask() : this.projectPixels();
   }
 
   addMask(w, h, fill = '#ffffff') {
-    if (this.mask) return this.mask;
-    this.mask = createCanvas(w, h);
-    const c = this.mask.getContext('2d');
+    if (this._mask) return this.projectMask();
+    const mask = createCanvas(w, h);
+    const c = mask.getContext('2d');
     c.fillStyle = fill;
     c.fillRect(0, 0, w, h);
-    this.maskVersion++;
-    this._maskAlphaVersion = -1;
-    return this.mask;
+    this.setMaskSource(mask, 0, 0, 0, { width: w, height: h });
+    return this.projectMask();
   }
 
   removeMask() {
@@ -286,10 +416,12 @@ export class Layer {
    * `destination-in` source. Cached against `maskVersion`.
    */
   maskAlphaCanvas() {
-    if (!this.mask) return null;
-    if (this._maskAlpha && this._maskAlphaVersion === this.maskVersion) return this._maskAlpha;
-    const w = this.mask.width, h = this.mask.height;
-    const src = this.mask.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h);
+    if (!this._mask) return null;
+    if (this._maskAlpha && this._maskAlphaVersion === this.maskVersion
+      && this._maskAlphaInverted === this.maskInverted) return this._maskAlpha;
+    const mask = this.projectMask();
+    const w = mask.width, h = mask.height;
+    const src = mask.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h);
     const out = new ImageData(w, h);
     const s = src.data, d = out.data;
     const inv = this.maskInverted;
@@ -302,6 +434,7 @@ export class Layer {
     cv.getContext('2d').putImageData(out, 0, 0);
     this._maskAlpha = cv;
     this._maskAlphaVersion = this.maskVersion;
+    this._maskAlphaInverted = this.maskInverted;
     return cv;
   }
 
@@ -326,7 +459,12 @@ export class Layer {
       locked: { ...this.locked },
       canvas: this._full ? cloneCanvas(this._full) : null,
       tile: this._tile ? { ...this._tile, canvas: cloneCanvas(this._tile.canvas) } : null,
-      mask: cloneCanvas(this.mask),
+      docWidth: this._docWidth,
+      docHeight: this._docHeight,
+      mask: cloneCanvas(this._mask),
+      maskX: this.maskX,
+      maskY: this.maskY,
+      maskDefault: this.maskDefault,
       maskEnabled: this.maskEnabled,
       maskLinked: this.maskLinked,
       maskInverted: this.maskInverted,
@@ -363,11 +501,15 @@ export class Layer {
       blendMode: this.blendMode,
       clipped: this.clipped,
       locked: { ...this.locked },
-      // Whichever form the pixels are in — never `this.canvas`, which would
-      // materialise every layer in the document on every single commit.
+      // Snapshots share authoritative buffers, never disposable projections.
       canvas: this._full,
       tile: this._tile,
-      mask: this.mask,
+      docWidth: this._docWidth,
+      docHeight: this._docHeight,
+      mask: this._mask,
+      maskX: this.maskX,
+      maskY: this.maskY,
+      maskDefault: this.maskDefault,
       maskEnabled: this.maskEnabled,
       maskLinked: this.maskLinked,
       maskInverted: this.maskInverted,
@@ -395,40 +537,11 @@ export class Layer {
     return l;
   }
 
-  /** Opaque bounding box of the layer pixels, or null when fully empty. */
-  contentBounds() {
-    /*
-     * Scans the tile when there is one, and returns document-space coordinates
-     * either way. Two wins, not one: it does not materialise, and it reads a
-     * 120x120 buffer instead of a 1600x1200 one to answer the same question.
-     * PSD export calls this on every layer and then crops to it, so this is the
-     * hot path for saving as well as for aligning.
-     */
-    const t = this._tile;
-    if (t) {
-      const tw = t.canvas.width, th = t.canvas.height;
-      const td = t.canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, tw, th).data;
-      let tMinX = tw, tMinY = th, tMaxX = -1, tMaxY = -1;
-      for (let y = 0; y < th; y++) {
-        const row = y * tw * 4;
-        for (let x = 0; x < tw; x++) {
-          if (td[row + x * 4 + 3] !== 0) {
-            if (x < tMinX) tMinX = x;
-            if (x > tMaxX) tMaxX = x;
-            if (y < tMinY) tMinY = y;
-            if (y > tMaxY) tMaxY = y;
-          }
-        }
-      }
-      if (tMaxX < 0) return null;
-      return {
-        x: tMinX + t.x, y: tMinY + t.y,
-        width: tMaxX - tMinX + 1, height: tMaxY - tMinY + 1,
-      };
-    }
-    if (!this._full) return null;
-    const w = this._full.width, h = this._full.height;
-    const d = this._full.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+  localContentBounds() {
+    const source = this.getPixelSource();
+    if (!source) return null;
+    const w = source.canvas.width, h = source.canvas.height;
+    const d = source.canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
     let minX = w, minY = h, maxX = -1, maxY = -1;
     for (let y = 0; y < h; y++) {
       const row = y * w * 4;
@@ -445,31 +558,28 @@ export class Layer {
     return { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
   }
 
+  /** Opaque bounds in document coordinates, including content outside the document. */
+  contentBounds() {
+    const b = this.localContentBounds();
+    const source = this.getPixelSource();
+    return b ? { ...b, x: b.x + source.x, y: b.y + source.y } : null;
+  }
+
   /** 40×40 thumbnail used by the Layers panel. */
   thumbnail(size = 40) {
     if (!this.thumbDirty && this._thumb && this._thumb.width === size) return this._thumb;
     const cv = createCanvas(size, size);
     const c = cv.getContext('2d');
-    /*
-     * Drawn from the tile when there is one. The Layers panel asks every layer
-     * for a thumbnail on every render, so reading `.canvas` here would expand the
-     * whole document to full size the moment a PSD finished importing — which is
-     * exactly the cost this is meant to avoid.
-     *
-     * The tile is scaled as if it were document-sized so the thumbnail frames the
-     * layer the same way either form does, rather than zooming into the content.
-     */
-    const t = this.type === LayerType.GROUP ? null : this._tile;
-    const src = t ? t.canvas : (this.type === LayerType.GROUP ? null : this._full);
-    if (src) {
-      const boxW = t ? t.docWidth : src.width;
-      const boxH = t ? t.docHeight : src.height;
+    const source = this.type === LayerType.GROUP ? null : this.getPixelSource();
+    if (source) {
+      const src = source.canvas;
+      const boxW = this._docWidth, boxH = this._docHeight;
       const s = Math.min(size / boxW, size / boxH);
       c.imageSmoothingQuality = 'high';
       c.drawImage(
         src,
-        (size - boxW * s) / 2 + (t ? t.x * s : 0),
-        (size - boxH * s) / 2 + (t ? t.y * s : 0),
+        (size - boxW * s) / 2 + source.x * s,
+        (size - boxH * s) / 2 + source.y * s,
         src.width * s, src.height * s,
       );
     }

@@ -165,7 +165,7 @@ function buildPropertiesPanel(bodyEl) {
 function pickMode(doc, layer) {
   if (!doc) return 'none';
   if (!layer) return 'document';
-  if (layer.editingMask && layer.mask) return 'mask';
+  if (layer.editingMask && layer.getMaskSource()) return 'mask';
   if (layer.type === LayerType.ADJUSTMENT && layer.adjustment) return 'adjustment';
   if (layer.type === LayerType.TEXT && layer.text) return 'text';
   if (layer.type === LayerType.SHAPE && layer.shape) return 'shape';
@@ -329,7 +329,9 @@ function adjustmentSection(doc, layer) {
  */
 function ensureMaskBase(layer) {
   if (layer._maskBase && layer._maskBaseVersion === layer.maskVersion) return;
-  layer._maskBase = cloneCanvas(layer.mask);
+  const source = layer.getMaskSource();
+  layer._maskBase = cloneCanvas(source.canvas);
+  layer._maskBaseSource = { ...source, canvas: layer._maskBase };
   layer._maskBaseVersion = layer.maskVersion;
   layer.maskDensity = 100;
   layer.maskFeather = 0;
@@ -337,7 +339,7 @@ function ensureMaskBase(layer) {
 
 function rebuildMask(layer) {
   const base = layer._maskBase;
-  if (!base || !layer.mask) return;
+  if (!base || !layer.getMaskSource()) return;
   const w = base.width, h = base.height;
   const src = getImageData(base).data;
   let lum = new Uint8ClampedArray(w * h);
@@ -356,8 +358,9 @@ function rebuildMask(layer) {
   }
   const cv = createCanvas(w, h);
   cv.getContext('2d').putImageData(out, 0, 0);
-  layer.mask = cv;
-  layer.touchMask();
+  const source = layer._maskBaseSource;
+  const defaultValue = Math.round(255 - (255 - source.defaultValue) * density);
+  layer.setMaskSource(cv, source.x, source.y, defaultValue);
   layer._maskBaseVersion = layer.maskVersion;
 }
 
@@ -525,7 +528,7 @@ function textSection(doc, layer) {
       if (mine !== token) return;
       const fn = mod.rasterizeTextLayer;
       if (typeof fn !== 'function') throw new Error('Text renderer is unavailable.');
-      layer.canvas = fn(layer, doc);
+      fn(layer, doc);
       doc.touch('text');
     } catch (err) {
       console.error(err);
@@ -682,7 +685,7 @@ function shapeSection(doc, layer) {
       }
       const fn = mod.rasterizeShapeLayer;
       if (typeof fn !== 'function') throw new Error('Shape renderer is unavailable.');
-      layer.canvas = fn(layer, doc);
+      fn(layer, doc);
       doc.touch('shape');
     } catch (err) {
       console.error(err);

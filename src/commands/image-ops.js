@@ -3,7 +3,9 @@ import '../ui/dialogs/dialogs.css';
 import { app } from '../core/app.js';
 import { createCanvas, cloneCanvas, el, clamp, clamp255, deg2rad, uid } from '../core/util.js';
 import { Selection } from '../core/selection.js';
-import { Layer, LayerType } from '../core/layer.js';
+import { Layer, LayerType, mapLayerGeometry, translateLayerGeometry, checkPixelAllocation, pixelSourceBounds } from '../core/layer.js';
+import { matrixMultiply } from '../core/smart.js';
+import { commitPaintSurface, transformSource } from '../edit/pixels.js';
 import { PikaDocument } from '../core/document.js';
 import { compositeDocument, flattenLayers, setLayerPreview } from '../render/compositor.js';
 import { BLEND_MODES, isNativeBlend, gcoFor, blendCPU } from '../core/blend.js';
@@ -75,13 +77,14 @@ export function convertToRGB(doc) {
 export function convertToGrayscale(doc) {
   for (const l of everyRasterLayer(doc)) {
     l.beginEdit();
-    const img = readPixels(l.canvas);
+    const source = l.getPixelSource();
+    const img = readPixels(source.canvas);
     const d = img.data;
     for (let i = 0; i < d.length; i += 4) {
       const g = clamp255(Math.round(luminance(d[i], d[i + 1], d[i + 2])));
       d[i] = d[i + 1] = d[i + 2] = g;
     }
-    l.canvas = toCanvas(img);
+    l.setPixelSource(toCanvas(img), source.x, source.y, doc);
   }
   doc.colorMode = 'grayscale';
   doc.commit('Grayscale');
@@ -174,28 +177,9 @@ export function rotateDocumentArbitrary(doc, degrees) {
   const nw = Math.max(1, Math.ceil(w * cos + h * sin));
   const nh = Math.max(1, Math.ceil(w * sin + h * cos));
 
-  const spin = (src, fillWhite) => {
-    const out = createCanvas(nw, nh);
-    const c = out.getContext('2d');
-    if (fillWhite) { c.fillStyle = '#ffffff'; c.fillRect(0, 0, nw, nh); }
-    c.translate(nw / 2, nh / 2);
-    c.rotate(rad);
-    c.imageSmoothingQuality = 'high';
-    c.drawImage(src, -w / 2, -h / 2);
-    return out;
-  };
-
-  for (const l of doc.flatLayers()) {
-    l.beginEdit();
-    if (l.canvas) l.canvas = spin(l.canvas, false);
-    if (l.mask) { l.mask = spin(l.mask, true); l.touchMask(); }
-  }
-  doc.width = nw;
-  doc.height = nh;
-  doc.selection = new Selection(nw, nh);
+  const matrix = new DOMMatrix().translate(nw / 2, nh / 2).rotate(degrees).translate(-w / 2, -h / 2);
+  doc.transformAffine(matrix, nw, nh);
   doc.guides = [];
-  doc.invalidate();
-  doc.emit('resize');
   doc.commit(`Rotate ${degrees}°`);
 }
 
@@ -203,28 +187,15 @@ export function rotateDocumentArbitrary(doc, degrees) {
 /* Layer transforms (Edit > Transform > Rotate 180 / Flip / …)         */
 /* ------------------------------------------------------------------ */
 
-function transformOneLayer(doc, layer, kind) {
-  const w = doc.width, h = doc.height;
-  // Layer buffers are document-sized, so the transform happens about the
-  // document centre and anything pushed outside the canvas is clipped.
-  const apply = (src) => {
-    if (!src) return null;
-    const out = createCanvas(w, h);
-    const c = out.getContext('2d');
-    c.translate(w / 2, h / 2);
-    if (kind === 'cw') c.rotate(Math.PI / 2);
-    else if (kind === 'ccw') c.rotate(-Math.PI / 2);
-    else if (kind === '180') c.rotate(Math.PI);
-    else if (kind === 'flip-h') c.scale(-1, 1);
-    else if (kind === 'flip-v') c.scale(1, -1);
-    c.imageSmoothingQuality = 'high';
-    c.drawImage(src, -w / 2, -h / 2);
-    return out;
+function withChildren(layers) {
+  const result = new Set();
+  const visit = (layer) => {
+    if (result.has(layer)) return;
+    result.add(layer);
+    for (const child of layer.children || []) visit(child);
   };
-  layer.beginEdit();
-  if (layer.canvas) layer.canvas = apply(layer.canvas);
-  if (layer.mask && layer.maskLinked) { layer.mask = apply(layer.mask); layer.touchMask(); }
-  if (layer.children) for (const child of layer.children) transformOneLayer(doc, child, kind);
+  layers.forEach(visit);
+  return [...result];
 }
 
 /**
@@ -234,25 +205,59 @@ function transformOneLayer(doc, layer, kind) {
 export function transformLayers(doc, layers, kind, label) {
   const list = (layers && layers.length ? layers : doc.selectedLayers()).filter(Boolean);
   if (!list.length) return;
-  for (const l of list) transformOneLayer(doc, l, kind);
+  const matrix = new DOMMatrix().translate(doc.width / 2, doc.height / 2);
+  if (kind === 'cw') matrix.rotateSelf(90);
+  else if (kind === 'ccw') matrix.rotateSelf(-90);
+  else if (kind === '180') matrix.rotateSelf(180);
+  else if (kind === 'flip-h') matrix.scaleSelf(-1, 1);
+  else if (kind === 'flip-v') matrix.scaleSelf(1, -1);
+  matrix.translateSelf(-doc.width / 2, -doc.height / 2);
+  const affine = [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f];
+  const targets = withChildren(list);
+  let outputPixels = 0;
+  for (const layer of targets) for (const source of [layer.getPixelSource(), layer.maskLinked ? layer.getMaskSource() : null]) {
+    const bounds = pixelSourceBounds(source, matrix);
+    if (bounds) outputPixels += bounds.width * bounds.height;
+  }
+  checkPixelAllocation(doc.width, doc.height, doc.memoryUse() / 4 + outputPixels,
+    (doc.memoryLimitMB || 512) * 1048576);
+  const prepared = targets.map((layer) => {
+    const geometry = { text: layer.text, shape: layer.shape };
+    mapLayerGeometry(geometry, (x, y) => matrix.transformPoint({ x, y }));
+    return {
+      layer, geometry,
+      pixels: transformSource(layer.getPixelSource(), matrix, doc),
+      mask: layer.maskLinked ? transformSource(layer.getMaskSource(), matrix, doc) : null,
+      smart: layer.smart ? { ...layer.smart, transform: { ...layer.smart.transform,
+        matrix: matrixMultiply(affine, layer.smart.transform?.matrix || [1, 0, 0, 1, 0, 0]) } } : null,
+    };
+  });
+  for (const { layer, pixels, mask, geometry, smart } of prepared) {
+    if (pixels) layer.setPixelSource(pixels.canvas, pixels.x, pixels.y, doc);
+    if (mask) layer.setMaskSource(mask.canvas, mask.x, mask.y, mask.defaultValue, doc);
+    layer.text = geometry.text;
+    layer.shape = geometry.shape;
+    layer.smart = smart;
+  }
   doc.commit(label || 'Transform');
 }
 
 /** Move layer pixels (and the linked mask) by a whole number of pixels. */
 export function translateLayers(doc, layers, dx, dy) {
-  const shift = (layer) => {
-    layer.beginEdit();
-    const move = (src) => {
-      if (!src) return null;
-      const out = createCanvas(src.width, src.height);
-      out.getContext('2d').drawImage(src, Math.round(dx), Math.round(dy));
-      return out;
-    };
-    if (layer.canvas) layer.canvas = move(layer.canvas);
-    if (layer.mask && layer.maskLinked) { layer.mask = move(layer.mask); layer.touchMask(); }
-    if (layer.children) for (const c of layer.children) shift(c);
-  };
-  for (const l of layers) shift(l);
+  dx = Math.round(dx); dy = Math.round(dy);
+  const targets = withChildren(layers);
+  for (const layer of targets) for (const source of [layer.getPixelSource(), layer.maskLinked ? layer.getMaskSource() : null]) {
+    if (source && (!Number.isSafeInteger(source.x + dx) || !Number.isSafeInteger(source.y + dy))) {
+      throw new Error('图层位置超出范围');
+    }
+  }
+  for (const layer of targets) {
+    layer.translatePixels(dx, dy, doc);
+    if (layer.maskLinked) layer.translateMask(dx, dy, doc);
+    translateLayerGeometry(layer, dx, dy);
+    if (layer.smart) layer.smart = { ...layer.smart, transform: { ...layer.smart.transform,
+      matrix: matrixMultiply([1, 0, 0, 1, dx, dy], layer.smart.transform?.matrix || [1, 0, 0, 1, 0, 0]) } };
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -354,7 +359,8 @@ export function defringe(doc, layer, width = 1) {
   const l = layer || doc.activeLayer();
   if (!l || !l.canvas) { app.toast('No pixel layer selected.'); return; }
   doc.beginEdit(l);
-  const img = readPixels(l.canvas);
+  const source = l.getPixelSource();
+  const img = readPixels(source.canvas);
   const w = img.width, h = img.height, d = img.data;
   const src = new Uint8ClampedArray(d);
   const solid = (i) => src[i + 3] >= 250;
@@ -384,7 +390,7 @@ export function defringe(doc, layer, width = 1) {
       }
     }
   }
-  l.canvas = toCanvas(img);
+  l.setPixelSource(toCanvas(img), source.x, source.y, doc);
   doc.commit('Defringe');
 }
 
@@ -397,14 +403,15 @@ export function removeMatte(doc, layer, matte = 'white') {
   if (!l || !l.canvas) { app.toast('No pixel layer selected.'); return; }
   const m = matte === 'black' ? 0 : 255;
   doc.beginEdit(l);
-  const img = readPixels(l.canvas);
+  const source = l.getPixelSource();
+  const img = readPixels(source.canvas);
   const d = img.data;
   for (let i = 0; i < d.length; i += 4) {
     const a = d[i + 3] / 255;
     if (a <= 0 || a >= 1) continue;
     for (let k = 0; k < 3; k++) d[i + k] = clamp255((d[i + k] - m * (1 - a)) / a);
   }
-  l.canvas = toCanvas(img);
+  l.setPixelSource(toCanvas(img), source.x, source.y, doc);
   doc.commit(matte === 'black' ? 'Remove Black Matte' : 'Remove White Matte');
 }
 
@@ -430,10 +437,10 @@ function previousPixels(doc, layer) {
   const prev = hist.states[hist.index - 1];
   if (!prev) return null;
   const snap = findSnapshot(prev.state.layers, layer.id);
-  if (!snap || !snap.canvas || !layer.canvas) return null;
-  if (snap.canvas === layer.canvas) return null;
-  if (snap.canvas.width !== layer.canvas.width || snap.canvas.height !== layer.canvas.height) return null;
-  return snap.canvas;
+  if (!snap || prev.state.width !== doc.width || prev.state.height !== doc.height) return null;
+  const historical = Layer.fromSnapshot(snap);
+  if (!historical.pixelKey() || historical.pixelKey() === layer.pixelKey()) return null;
+  return historical.projectPixels(doc);
 }
 
 /** True when Edit > Fade can do something meaningful right now. */
@@ -471,7 +478,7 @@ export async function showFadeDialog(doc) {
   if (!result) return;
   const faded = build(result);
   doc.beginEdit(layer);
-  layer.canvas = faded;
+  commitPaintSurface(doc, layer, faded, null, false);
   doc.commit(`Fade ${label}`);
 }
 
@@ -578,7 +585,7 @@ export async function showApplyImageDialog(doc) {
   doc.touch('preview');
   if (!result) return;
   doc.beginEdit(target);
-  target.canvas = build(result);
+  commitPaintSurface(doc, target, build(result), null, false);
   doc.commit('Apply Image');
 }
 

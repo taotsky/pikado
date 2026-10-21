@@ -168,28 +168,45 @@ class TestContext {
 
   /** Fill a layer's canvas with a solid colour. */
   fill(layer, color, x = 0, y = 0, w = null, h = null) {
-    const c = layer.canvas.getContext('2d');
-    c.fillStyle = color;
-    c.fillRect(x, y, w == null ? layer.canvas.width : w, h == null ? layer.canvas.height : h);
+    return this.paint(layer, (c, canvas) => {
+      c.fillStyle = color;
+      c.fillRect(x, y, w == null ? canvas.width : w, h == null ? canvas.height : h);
+    });
+  }
+
+  /** Fixture edits use the same explicit region commit as product writers. */
+  paint(layer, draw) {
+    const canvas = layer.canvas;
+    draw(canvas.getContext('2d'), canvas);
+    const doc = { width: canvas.width, height: canvas.height };
+    layer.commitPixelRegion(doc, { x: 0, y: 0, width: doc.width, height: doc.height }, canvas);
+    return layer;
+  }
+
+  paintMask(layer, draw) {
+    const canvas = layer.mask;
+    draw(canvas.getContext('2d'), canvas);
+    const doc = { width: canvas.width, height: canvas.height };
+    layer.commitMaskRegion(doc, { x: 0, y: 0, width: doc.width, height: doc.height }, canvas);
     return layer;
   }
 
   /** A layer of fine detail, so resampling loss is measurable. */
   detail(layer) {
-    const c = layer.canvas.getContext('2d');
-    const w = layer.canvas.width, h = layer.canvas.height;
-    for (let y = 0; y < h; y += 4) {
-      for (let x = 0; x < w; x += 4) {
-        c.fillStyle = `hsl(${(x + y) % 360},80%,${40 + ((x / 4 + y / 4) % 2) * 30}%)`;
-        c.fillRect(x, y, 4, 4);
+    return this.paint(layer, (c, canvas) => {
+      const w = canvas.width, h = canvas.height;
+      for (let y = 0; y < h; y += 4) {
+        for (let x = 0; x < w; x += 4) {
+          c.fillStyle = `hsl(${(x + y) % 360},80%,${40 + ((x / 4 + y / 4) % 2) * 30}%)`;
+          c.fillRect(x, y, 4, 4);
+        }
       }
-    }
-    c.strokeStyle = '#000';
-    c.lineWidth = 1;
-    for (let i = 0; i < w; i += 16) {
-      c.beginPath(); c.moveTo(i, 0); c.lineTo(0, i); c.stroke();
-    }
-    return layer;
+      c.strokeStyle = '#000';
+      c.lineWidth = 1;
+      for (let i = 0; i < w; i += 16) {
+        c.beginPath(); c.moveTo(i, 0); c.lineTo(0, i); c.stroke();
+      }
+    });
   }
 
   /** Elapsed ms for a synchronous call. */
@@ -275,12 +292,13 @@ async function liveApp() {
   return mod.app;
 }
 
-export async function runAll({ onProgress } = {}) {
+export async function runAll({ onProgress, filter } = {}) {
   const { PikaDocument } = await import('/src/core/document.js');
   const app = await liveApp();
 
-  const only = suites.filter((s) => s.only);
-  const list = (only.length ? only : suites).filter((s) => !s.skip);
+  const available = suites.filter((s) => !filter || s.name.includes(filter));
+  const only = available.filter((s) => s.only);
+  const list = (only.length ? only : available).filter((s) => !s.skip);
 
   const report = { suites: [], passed: 0, failed: 0, errors: 0, startedAt: Date.now() };
 

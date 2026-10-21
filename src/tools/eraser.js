@@ -1,4 +1,5 @@
 import { t } from '../i18n.js';
+import { commitPaintSurface } from '../edit/pixels.js';
 import { Tool, registerTool } from './base.js';
 import { app } from '../core/app.js';
 import { PaintStroke, EffectStroke, brushOptionDescriptors, brushFromOptions } from '../paint/brush-engine.js';
@@ -81,8 +82,7 @@ class EraserTool extends BrushToolBase {
     return brushFromOptions(this.state);
   }
 
-  makeStroke(e, doc, layer) {
-    const target = layer.paintTarget();
+  makeStroke(e, doc, layer, target) {
     const brush = this._brushSettings();
 
     if (this.state.eraseToHistory) {
@@ -165,8 +165,7 @@ class BackgroundEraserTool extends BrushToolBase {
     return true;
   }
 
-  makeStroke(e, doc, layer) {
-    const target = layer.paintTarget();
+  makeStroke(e, doc, layer, target) {
     const tol = (this.state.tolerance / 100) * 255;
     const limits = this.state.limits;
     const protect = this.state.protectForeground;
@@ -351,8 +350,8 @@ class MagicEraserTool extends Tool {
     ctx.globalCompositeOperation = 'destination-out';
     ctx.drawImage(cut, 0, 0);
     ctx.restore();
+    commitPaintSurface(doc, layer, surface, doc.selection.active ? doc.selection.bounds() : null);
     if (layer.isBackground && !layer.editingMask) layer.isBackground = false;
-    if (layer.editingMask) layer.touchMask();
     doc.commit('Magic Eraser');
   }
 }

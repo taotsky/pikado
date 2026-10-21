@@ -19,8 +19,7 @@ suite('export dialogs / PSD preserves layers and never falls back to PNG', async
   const doc = test.doc(8, 6, '#ff0000', 'PSD-test');
   doc.layers[0].name = 'Save';
   const layer = createRasterLayer(8, 6, 'Layer');
-  layer.canvas.getContext('2d').fillStyle = '#0000ff';
-  layer.canvas.getContext('2d').fillRect(1, 1, 2, 2);
+  test.fill(layer, '#0000ff', 1, 1, 2, 2);
   doc.addLayer(layer);
   const downloads = [];
   const urls = new Map();

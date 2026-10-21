@@ -82,10 +82,12 @@ async function writeToHandle(handle, blob) {
  */
 export async function saveDocument(doc) {
   if (!doc) return false;
+  if (doc._pkdVersion === 1 && doc.fileHandle) return saveDocumentAs(doc);
   if (!doc.fileHandle || typeof doc.fileHandle.createWritable !== 'function') return saveDocumentAs(doc);
   return app.busy('Saving…', async () => {
     const blob = await savePKD(doc);
     await writeToHandle(doc.fileHandle, blob);
+    doc._pkdVersion = 2;
     doc.dirty = false;
     app.toast(t('Saved {name}', { name: doc.name }), 'ok');
     app.emit('doc-change', doc);
@@ -101,7 +103,8 @@ export async function saveDocument(doc) {
  */
 export async function saveDocumentAs(doc) {
   if (!doc) return false;
-  const suggested = `${baseName(doc.name)}.pkd`;
+  const legacyHandle = doc._pkdVersion === 1 ? doc.fileHandle : null;
+  const suggested = `${baseName(doc.name)}${legacyHandle ? '-v2' : ''}.pkd`;
 
   if (pickerSupported()) {
     let handle;
@@ -115,10 +118,19 @@ export async function saveDocumentAs(doc) {
       handle = null;
     }
     if (handle) {
+      if (legacyHandle && handle !== legacyHandle && typeof handle.isSameEntry !== 'function') {
+        app.toast('This browser cannot verify a different file. Download the v2 project instead.', 'warn');
+        return false;
+      }
+      if (legacyHandle && (handle === legacyHandle || (typeof handle.isSameEntry === 'function' && await handle.isSameEntry(legacyHandle)))) {
+        app.toast('Choose a different file to keep the original v1 project.', 'warn');
+        return false;
+      }
       return app.busy('Saving…', async () => {
         const blob = await savePKD(doc);
         await writeToHandle(handle, blob);
         doc.fileHandle = handle;
+        doc._pkdVersion = 2;
         doc.filePath = handle.name || suggested;
         doc.name = baseName(handle.name || doc.name);
         doc.dirty = false;
@@ -132,6 +144,7 @@ export async function saveDocumentAs(doc) {
   return app.busy('Saving…', async () => {
     const blob = await savePKD(doc);
     download(blob, suggested);
+    if (!legacyHandle) doc._pkdVersion = 2;
     doc.dirty = false;
     app.toast(t('Saved {name}', { name: suggested }), 'ok');
     return true;

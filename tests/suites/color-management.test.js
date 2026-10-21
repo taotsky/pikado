@@ -312,9 +312,11 @@ suite('color / convert reaches rendered pixels, not just parameters', async (t) 
   {
     const doc = t.doc(60, 40, '#ffffff', 'smart-convert');
     const layer = doc.activeLayer();
-    const c = ctx2d(layer.canvas);
+    const paintedCanvas = layer.canvas;
+    const c = ctx2d(paintedCanvas);
     c.fillStyle = '#00ff40';
     c.fillRect(0, 0, 60, 40);
+    layer.setPixelSource(paintedCanvas, 0, 0, doc);
     doc.commit('Paint');
 
     const smart = convertToSmartObject(doc);
@@ -355,9 +357,11 @@ suite('color / layer effect colours are converted too', async (t) => {
   // one field over.
   const doc = t.doc(50, 40, '#ffffff', 'styles-convert');
   const layer = doc.activeLayer();
-  const c = ctx2d(layer.canvas);
+  const paintedCanvas = layer.canvas;
+  const c = ctx2d(paintedCanvas);
   c.fillStyle = '#8080ff';
   c.fillRect(10, 10, 30, 20);
+  layer.setPixelSource(paintedCanvas, 0, 0, doc);
   layer.styles = structuredClone(DEFAULT_STYLES);
   layer.styles.dropShadow = { ...layer.styles.dropShadow, enabled: true, color: '#ff2000' };
   doc.commit('Shadow');
@@ -372,7 +376,8 @@ suite('color / layer effect colours are converted too', async (t) => {
 
 suite('color / a convert round trip through a wider space is near-lossless', async (t) => {
   const doc = t.doc(32, 32, null, 'round');
-  const c = ctx2d(doc.layers[0].canvas);
+  const paintedCanvas = doc.layers[0].canvas;
+  const c = ctx2d(paintedCanvas);
   // A spread of colours, all inside sRGB.
   for (let y = 0; y < 32; y++) {
     for (let x = 0; x < 32; x++) {
@@ -380,6 +385,7 @@ suite('color / a convert round trip through a wider space is near-lossless', asy
       c.fillRect(x, y, 1, 1);
     }
   }
+  doc.layers[0].setPixelSource(paintedCanvas, 0, 0, doc);
   doc.commit('Spread');
   const before = t.bytes(doc.layers[0].canvas);
 
@@ -398,10 +404,12 @@ suite('color / a convert round trip through a wider space is near-lossless', asy
 
 suite('color / soft proofing is a view and nothing more', async (t) => {
   const doc = t.doc(16, 16, null, 'proof');
-  const c = ctx2d(doc.layers[0].canvas);
+  const paintedCanvas = doc.layers[0].canvas;
+  const c = ctx2d(paintedCanvas);
   // A colour that is inside sRGB but outside a small proof space in one channel.
   c.fillStyle = 'rgb(0,255,40)';
   c.fillRect(0, 0, 16, 16);
+  doc.layers[0].setPixelSource(paintedCanvas, 0, 0, doc);
   doc.commit('Green');
   const real = t.px(doc.layers[0].canvas, 8, 8);
 
@@ -438,11 +446,13 @@ suite('color / soft proofing is a view and nothing more', async (t) => {
 
 suite('color / the gamut warning marks what cannot be reproduced', async (t) => {
   const doc = t.doc(16, 16, null, 'gamut');
-  const c = ctx2d(doc.layers[0].canvas);
+  const paintedCanvas = doc.layers[0].canvas;
+  const c = ctx2d(paintedCanvas);
   c.fillStyle = 'rgb(255,255,255)';
   c.fillRect(0, 0, 16, 16);
   c.fillStyle = 'rgb(0,255,0)';     // pure sRGB green
   c.fillRect(0, 0, 8, 16);
+  doc.layers[0].setPixelSource(paintedCanvas, 0, 0, doc);
   doc.commit('Two halves');
 
   // Proof to sRGB itself: nothing can be out of gamut in its own space.

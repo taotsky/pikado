@@ -190,10 +190,11 @@ suite('perf / one brush frame on a 3 MP layer', async (t) => {
   const layer = doc.activeLayer();
   doc.beginEdit(layer);
 
+  const target = layer.canvas;
   const stroke = new PaintStroke({
     doc,
     layer,
-    target: layer.canvas,
+    target,
     // Deterministic: no smoothing lag, no jitter, no pressure scaling.
     brush: {
       size: 40, hardness: 1, opacity: 1, flow: 1, spacing: 0.1,
@@ -205,21 +206,23 @@ suite('perf / one brush frame on a 3 MP layer', async (t) => {
   });
   stroke.begin(100, 100, 1);
   stroke.flush();
-  t.pixel(layer.canvas, 100, 100, '255,0,0,255', 'the first dab landed');
-  t.pixel(layer.canvas, 250, 200, '0,0,0,0', 'precondition: the mid-stroke probe is still empty before the move');
+  t.pixel(target, 100, 100, '255,0,0,255', 'the first dab landed');
+  t.pixel(target, 250, 200, '0,0,0,0', 'precondition: the mid-stroke probe is still empty before the move');
 
   const msFrame = t.time(() => {
     stroke.move(400, 300, 1);
     stroke.flush();
   });
 
-  t.pixel(layer.canvas, 250, 200, '255,0,0,255', 'the midpoint of the segment was painted opaque red');
-  t.pixel(layer.canvas, 400, 300, '255,0,0,255', 'and so was the far end');
-  t.pixel(layer.canvas, 1500, 1200, '0,0,0,0', 'nothing outside the stroke was touched');
+  t.pixel(target, 250, 200, '255,0,0,255', 'the midpoint of the segment was painted opaque red');
+  t.pixel(target, 400, 300, '255,0,0,255', 'and so was the far end');
+  t.pixel(target, 1500, 1200, '0,0,0,0', 'nothing outside the stroke was touched');
   t.gt(stroke.dabCount, 80, `the frame emitted ${stroke.dabCount} dabs (360 px at 4 px spacing)`);
   t.lt(msFrame, 50, `one brush frame (move + flush) on a ${MP} MP layer took ${msFrame.toFixed(1)} ms (limit 50)`);
 
   stroke.end();
+  layer.commitPixelRegion(doc, { x: 0, y: 0, width: doc.width, height: doc.height }, target);
+  t.pixel(layer.canvas, 250, 200, '255,0,0,255', 'committing the working stroke updates the layer pixels');
   doc.commit('Brush Tool');
 });
 
@@ -230,19 +233,20 @@ suite('perf / copy-on-write beginEdit on a 3 MP layer', async (t) => {
   t.fill(layer, 'rgb(12,34,56)');
   doc.commit('Fill');
 
-  const snapshotBuffer = doc.findLayer(layer.id).canvas;
+  const snapshotBuffer = doc.findLayer(layer.id).pixelKey();
   t.eq(t.px(snapshotBuffer, 10, 10), '12,34,56,255', 'the committed buffer holds the fill');
 
   const live = doc.findLayer(layer.id);
   const ms = t.time(() => doc.beginEdit(live));
   // Identity, not deepEqual: two canvases have no own enumerable keys, so
   // `t.ne` would compare them as equal and the assertion would be vacuous.
-  t.ok(live.canvas !== snapshotBuffer, 'beginEdit swapped in a private buffer');
-  t.eq(t.mad(t.bytes(live.canvas), t.bytes(snapshotBuffer)), 0, 'the private buffer is pixel-identical');
+  t.is(live.pixelKey(), snapshotBuffer, 'beginEdit keeps the read-only source shared until pixels are committed');
+  t.eq(t.mad(t.bytes(live.canvas), t.bytes(snapshotBuffer)), 0, 'beginEdit leaves the committed pixels unchanged');
 
   // The guarantee beginEdit exists for: later drawing must not reach the buffer
   // the history snapshot is holding.
   t.fill(live, 'rgb(200,100,50)');
+  t.isNot(live.pixelKey(), snapshotBuffer, 'committing the edit installs a private pixel buffer');
   t.eq(t.px(live.canvas, 10, 10), '200,100,50,255', 'drawing hits the live buffer');
   t.eq(t.px(snapshotBuffer, 10, 10), '12,34,56,255', 'and leaves the snapshot buffer alone');
   t.lt(ms, 120, `doc.beginEdit on a ${MP} MP layer took ${ms.toFixed(1)} ms (limit 120)`);

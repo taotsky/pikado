@@ -3,7 +3,8 @@ import { Tool, registerTool } from './base.js';
 import { app } from '../core/app.js';
 import { PaintStroke, EffectStroke, brushOptionDescriptors, brushFromOptions } from '../paint/brush-engine.js';
 import { BLEND_MODES } from '../core/blend.js';
-import { getComposite } from '../render/compositor.js';
+import { getComposite, setLayerPreview, setLayerMaskPreview } from '../render/compositor.js';
+import { paintSurface, commitPaintSurface } from '../edit/pixels.js';
 import { createCanvas, ctx2dRead, clamp, clamp255 } from '../core/util.js';
 import { rgb, rgb2hsl, hsl2rgb, toCss, luminance, colorDistance } from '../core/color.js';
 import { OVERLAY } from '../ui/brand.js';
@@ -232,7 +233,7 @@ export { PaintStroke as BlendPaintStroke };
  * handles `[` / `]` (size) and Shift+`[` / Shift+`]` (hardness), and runs the
  * beginEdit → flush/touch → commit stroke lifecycle.
  *
- * Subclasses implement `makeStroke(e, doc, layer)` and may override
+ * Subclasses implement `makeStroke(e, doc, layer, target)` and may override
  * `beforeStroke` to veto a stroke.
  */
 export class BrushToolBase extends Tool {
@@ -268,7 +269,7 @@ export class BrushToolBase extends Tool {
   /* -------- stroke lifecycle ------------------------------------- */
 
   /** @returns {import('../paint/brush-engine.js').PaintStroke|null} */
-  makeStroke(e, doc, layer) { // eslint-disable-line no-unused-vars
+  makeStroke(e, doc, layer, target) { // eslint-disable-line no-unused-vars
     return null;
   }
 
@@ -283,26 +284,36 @@ export class BrushToolBase extends Tool {
     const doc = this.doc;
     const layer = doc.activeLayer();
     if (this.beforeStroke(e, doc, layer) === false) return;
-    doc.beginEdit(layer);
     let stroke = null;
     try {
-      stroke = this.makeStroke(e, doc, layer);
+      stroke = this.makeStroke(e, doc, layer, paintSurface(doc, layer));
     } catch (err) {
       console.error('[brush]', err);
+      app.toast(err && err.message ? err.message : String(err), 'error');
     }
     if (!stroke) return;
     this.stroke = stroke;
     this.strokeDoc = doc;
     this.strokeLayer = layer;
     stroke.onFrame = () => this._paintFrame();
-    stroke.begin(e.x, e.y, e.pressure);
-    this._paintFrame();
+    try {
+      stroke.begin(e.x, e.y, e.pressure);
+      this._paintFrame();
+    } catch (error) {
+      this.cancel();
+      throw error;
+    }
   }
 
   onPointerMove(e) {
     if (!this.stroke) return;
-    this.stroke.move(e.x, e.y, e.pressure);
-    this._paintFrame();
+    try {
+      this.stroke.move(e.x, e.y, e.pressure);
+      this._paintFrame();
+    } catch (error) {
+      this.cancel();
+      throw error;
+    }
   }
 
   onPointerUp() {
@@ -310,25 +321,40 @@ export class BrushToolBase extends Tool {
     const stroke = this.stroke;
     const doc = this.strokeDoc;
     this.stroke = null;
-    stroke.end();
-    stroke.flush();
-    if (this.strokeLayer && this.strokeLayer.editingMask) this.strokeLayer.touchMask();
-    this.afterStroke(stroke, doc, this.strokeLayer);
-    // A stroke that never stamped a dab (every dab fell outside the canvas)
-    // must not push an empty step onto the undo stack.
-    if (stroke.dirty) doc.commit(this.strokeLabel);
-    else doc.touch();
-    this.strokeDoc = null;
-    this.strokeLayer = null;
+    try {
+      stroke.end();
+      stroke.flush();
+      if (stroke.dirty && commitPaintSurface(doc, this.strokeLayer, stroke.target, stroke.dirty)) {
+        this.afterStroke(stroke, doc, this.strokeLayer);
+        doc.commit(this.strokeLabel);
+      } else doc.touch();
+    } finally {
+      this.clearPreview();
+      this.strokeDoc = null;
+      this.strokeLayer = null;
+    }
   }
 
   afterStroke() {}
 
+  clearPreview() {
+    if (!this.strokeLayer) return;
+    setLayerPreview(this.strokeLayer.id, null);
+    setLayerMaskPreview(this.strokeLayer.id, null);
+  }
+
   _paintFrame() {
     if (!this.stroke) return;
-    this.stroke.flush();
-    if (this.strokeLayer && this.strokeLayer.editingMask) this.strokeLayer.touchMask();
-    this.strokeDoc.touch();
+    try {
+      this.stroke.flush();
+      if (this.strokeLayer.editingMask && this.strokeLayer.getMaskSource()) {
+        setLayerMaskPreview(this.strokeLayer.id, this.stroke.target);
+      } else setLayerPreview(this.strokeLayer.id, this.stroke.target);
+      this.strokeDoc.touch();
+    } catch (error) {
+      this.cancel();
+      throw error;
+    }
   }
 
   commit() {
@@ -340,13 +366,7 @@ export class BrushToolBase extends Tool {
     const stroke = this.stroke;
     this.stroke = null;
     stroke.end();
-    const ctx = stroke.target.getContext('2d');
-    ctx.save();
-    ctx.globalCompositeOperation = 'copy';
-    ctx.globalAlpha = 1;
-    ctx.drawImage(stroke.base, 0, 0);
-    ctx.restore();
-    if (this.strokeLayer && this.strokeLayer.editingMask) this.strokeLayer.touchMask();
+    this.clearPreview();
     if (this.strokeDoc) this.strokeDoc.touch();
     this.strokeDoc = null;
     this.strokeLayer = null;
@@ -500,11 +520,11 @@ class BrushTool extends BrushToolBase {
     return 'crosshair';
   }
 
-  makeStroke(e, doc, layer) {
-    return new BlendPaintStroke({
+  makeStroke(e, doc, layer, target) {
+    return new PaintStroke({
       doc,
       layer,
-      target: layer.paintTarget(),
+      target,
       brush: brushFromOptions(this.state),
       mode: 'paint',
       color: paintColorFor(layer, app.foreground),
@@ -542,17 +562,17 @@ class PencilTool extends BrushToolBase {
     super.onPointerDown(e);
   }
 
-  makeStroke(e, doc, layer) {
+  makeStroke(e, doc, layer, target) {
     let color = app.foreground;
     if (this.state.autoErase) {
-      const px = samplePixel(layer.paintTarget(), e.x, e.y);
+      const px = samplePixel(target, e.x, e.y);
       // "Starts on foreground" means the pixel already carries the paint colour.
       if (px && px.a > 0.5 && colorDistance(px, app.foreground) < 24) color = app.background;
     }
-    return new BlendPaintStroke({
+    return new PaintStroke({
       doc,
       layer,
-      target: layer.paintTarget(),
+      target,
       // A pencil is a hard aliased tip: no antialiasing, no falloff.
       brush: brushFromOptions(this.state, { hardness: 1, antialias: false, spacing: 0.05 }),
       mode: 'paint',
@@ -673,8 +693,7 @@ class ColorReplaceTool extends BrushToolBase {
     super.onPointerDown(e);
   }
 
-  makeStroke(e, doc, layer) {
-    const target = layer.paintTarget();
+  makeStroke(e, doc, layer, target) {
     const fg = app.foreground;
     const fgHsl = rgb2hsl(fg.r, fg.g, fg.b);
     const mode = this.state.mode;
@@ -760,7 +779,7 @@ class MixerBrushTool extends BrushToolBase {
     super.onPointerDown(e);
   }
 
-  makeStroke(e, doc, layer) {
+  makeStroke(e, doc, layer, target) {
     const fg = app.foreground;
     if (!this.reservoir) this.reservoir = { r: fg.r, g: fg.g, b: fg.b, a: 1 };
     const wet = this.state.wet / 100;
@@ -770,7 +789,7 @@ class MixerBrushTool extends BrushToolBase {
     return new EffectStroke({
       doc,
       layer,
-      target: layer.paintTarget(),
+      target,
       // `flow` here is the per-dab deposit; the engine applies it as dab alpha.
       brush: brushFromOptions(this.state),
       strength: 1,

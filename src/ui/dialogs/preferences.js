@@ -278,7 +278,10 @@ export function applyStoredPreferences() {
   app.recentLimit = p.recentLimit;
   app.confirmBeforeClosing = !!p.confirmBeforeClosing;
 
-  for (const doc of app.docs) doc.history.limit = p.historyStates;
+  for (const doc of app.docs) {
+    doc.history.limit = p.historyStates;
+    doc.memoryLimitMB = p.memoryLimitMB;
+  }
 
   const root = document.documentElement;
   const accent = toHex(parseColor(p.accent));

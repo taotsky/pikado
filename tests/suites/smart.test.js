@@ -452,9 +452,10 @@ suite('smart / editing the embedded source is picked up', async (t) => {
   const historyBefore = src.history.index;
 
   src.beginEdit(srcLayer);
-  const c = ctx2d(srcLayer.canvas);
-  c.fillStyle = '#ff0000';
-  c.fillRect(0, 0, 60, 120);
+  t.paint(srcLayer, (c) => {
+    c.fillStyle = '#ff0000';
+    c.fillRect(0, 0, 60, 120);
+  });
   src.commit('Paint inside the Smart Object');
   t.gt(src.history.index, historyBefore, 'the embedded document recorded its own history step');
 

@@ -1,6 +1,7 @@
 import { app } from '../core/app.js';
 import { t } from '../i18n.js';
-import { ctx2dRead, ctx2d } from '../core/util.js';
+import { ctx2dRead, ctx2d, cloneCanvas } from '../core/util.js';
+import { checkPixelAllocation } from '../core/layer.js';
 import { registerProofRenderer } from '../render/compositor.js';
 import { parseColor, toHex } from '../core/color.js';
 import {
@@ -101,10 +102,18 @@ export async function convertToProfile(doc, profile, opts = {}) {
   // colour module cannot import at the top without a cycle. Awaiting here is what
   // makes "converted" mean the visible pixels too, not just the parameters.
   await primeColorHelpers();
-  convertSurfaces(doc, from, to, opts);
-  doc.profile = to;
-  doc.invalidate();
-  doc.commit(`Convert to Profile: ${to.name}`);
+  const snapshot = doc.captureState();
+  const dirty = doc.dirty;
+  try {
+    convertSurfaces(doc, from, to, opts);
+    doc.profile = to;
+    doc.invalidate();
+    doc.commit(`Convert to Profile: ${to.name}`);
+  } catch (error) {
+    doc.restoreState(snapshot);
+    doc.dirty = dirty;
+    throw error;
+  }
   return to;
 }
 
@@ -230,11 +239,15 @@ function convertSurfaces(doc, from, to, opts, depth = 0) {
       layer.shape = convertShape(layer.shape, from, to, opts);
     }
 
-    if (!layer.canvas) continue;
-    const cv = layer.canvas;
+    const source = layer.getPixelSource();
+    if (!source) continue;
+    checkPixelAllocation(source.canvas.width, source.canvas.height,
+      doc.memoryUse() / 4 + source.canvas.width * source.canvas.height, (doc.memoryLimitMB || 512) * 1048576);
+    const cv = cloneCanvas(source.canvas);
     const img = ctx2dRead(cv).getImageData(0, 0, cv.width, cv.height);
     transformImageData(img, from, to, opts);
     ctx2d(cv).putImageData(img, 0, 0);
+    layer.setPixelSource(cv, source.x, source.y, doc);
     layer.thumbDirty = true;
   }
 }

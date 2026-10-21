@@ -1,11 +1,12 @@
 import { t } from '../../i18n.js';
 import './dialogs.css';
 import { app } from '../../core/app.js';
-import { el, formatBytes, clamp255 } from '../../core/util.js';
+import { el, formatBytes, clamp255, cloneCanvas } from '../../core/util.js';
 import { Dialog, confirmDialog } from '../dialog.js';
 import { getComposite } from '../../render/compositor.js';
 import { UNIT_OPTIONS, RES_UNITS, toPixels, fromPixels, roundForUnit, resToUnit, resFromUnit } from './new-document.js';
 import { getPref } from './preferences.js';
+import { checkPixelAllocation } from '../../core/layer.js';
 
 /**
  * Image > Image Size. Resamples every layer, or re-labels the document's
@@ -267,17 +268,37 @@ export async function showImageSizeDialog(doc = app.activeDoc) {
   if (!changedPixels && !changedRes) return null;
 
   await app.busy(t('Image Size'), async () => {
-    if (changedPixels) {
-      const { smoothing, sharpen } = methodSettings(result.method);
-      doc.resample(result.w, result.h, smoothing);
-      if (sharpen > 0) {
-        for (const l of doc.flatLayers()) {
-          if (l.canvas) sharpenCanvas(l.canvas, sharpen);
+    const snapshot = doc.captureState();
+    const dirty = doc.dirty;
+    try {
+      if (changedPixels) {
+        const { smoothing, sharpen } = methodSettings(result.method);
+        doc.resample(result.w, result.h, smoothing);
+        if (sharpen > 0) {
+          const prepared = [];
+          let outputPixels = 0;
+          for (const l of doc.flatLayers()) {
+            const source = l.getPixelSource();
+            if (!source) continue;
+            const area = source.canvas.width * source.canvas.height;
+            checkPixelAllocation(source.canvas.width, source.canvas.height,
+              doc.memoryUse() / 4 + outputPixels + area * 3, (doc.memoryLimitMB || 512) * 1048576);
+            const pixels = cloneCanvas(source.canvas);
+            sharpenCanvas(pixels, sharpen);
+            prepared.push({ layer: l, source: { ...source, canvas: pixels } });
+            outputPixels += area;
+          }
+          for (const { layer, source } of prepared) layer.setPixelSource(source.canvas, source.x, source.y, doc);
         }
       }
+      doc.resolution = result.res;
+      doc.commit('Image Size');
+    } catch (error) {
+      doc.restoreState(snapshot);
+      doc.dirty = dirty;
+      doc.emit('resize');
+      throw error;
     }
-    doc.resolution = result.res;
-    doc.commit('Image Size');
   });
   return doc;
 }

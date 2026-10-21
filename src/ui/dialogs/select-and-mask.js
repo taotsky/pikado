@@ -1,7 +1,7 @@
 import { t } from '../../i18n.js';
 import './dialogs.css';
 import './select-and-mask.css';
-import { el, createCanvas, ctx2d, ctx2dRead } from '../../core/util.js';
+import { el, createCanvas, cloneCanvas, ctx2d, ctx2dRead } from '../../core/util.js';
 import { Dialog, buildForm } from '../dialog.js';
 import { app } from '../../core/app.js';
 import { getComposite } from '../../render/compositor.js';
@@ -709,7 +709,7 @@ function applyOutput(doc, mask, state) {
     case 'mask': {
       if (!active) break;
       doc.beginEdit(active);
-      active.mask = maskCanvas();
+      active.setMaskSource(maskCanvas(), 0, 0, 0, doc);
       active.maskEnabled = true;
       active.maskVersion++;
       doc.selection.clear();
@@ -725,8 +725,8 @@ function applyOutput(doc, mask, state) {
     }
     case 'layer-mask': {
       const base = createRasterLayer(W, H, 'Refined');
-      ctx2d(base.canvas).drawImage(getComposite(doc), 0, 0);
-      base.mask = maskCanvas();
+      base.setPixelSource(cloneCanvas(getComposite(doc)), 0, 0, doc);
+      base.setMaskSource(maskCanvas(), 0, 0, 0, doc);
       base.maskEnabled = true;
       doc.addLayer(base, { above: doc.layers[0] });
       doc.selection.clear();
@@ -739,7 +739,7 @@ function applyOutput(doc, mask, state) {
       const next = app.newDocument({ width: W, height: H, name: `${doc.name} refined`, fill: 'transparent' });
       if (next) {
         const l = next.layers[0];
-        ctx2d(l.canvas).drawImage(cutPixels(), 0, 0);
+        l.setPixelSource(cutPixels(), 0, 0, next);
         l.thumbDirty = true;
         next.commit('Select and Mask');
       }

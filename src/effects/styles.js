@@ -278,7 +278,7 @@ function alphaBoundsFast(canvas) {
 }
 
 /** How far outside the layer content the enabled effects can reach, in px. */
-function effectReach(styles) {
+export function effectReach(styles) {
   let reach = 0;
   const s = styles || {};
   const bump = (v) => { if (v > reach) reach = v; };

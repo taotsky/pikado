@@ -43,9 +43,11 @@ function buildFixture(t) {
   const masked = createRasterLayer(80, 60, 'Masked');
   t.fill(masked, '#c04020', 6, 6, 34, 24);
   masked.addMask(80, 60, '#ffffff');
-  const mc = ctx2d(masked.mask);
+  const maskPixels = masked.mask;
+  const mc = ctx2d(maskPixels);
   mc.fillStyle = '#000000';
   mc.fillRect(0, 0, 14, 60);
+  masked.setMaskSource(maskPixels, 0, 0, 255, doc);
   masked.touchMask();
   masked.opacity = 0.8;
   masked.fillOpacity = 0.6;
@@ -79,7 +81,7 @@ function buildFixture(t) {
     fill: { type: 'solid', color: '#22aa44' },
     stroke: { enabled: true, color: '#003311', width: 3, align: 'center', cap: 'butt', join: 'miter', dash: 'solid' },
   };
-  shape.canvas = rasterizeShapeLayer(shape, doc);
+  rasterizeShapeLayer(shape, doc);
 
   const text = new Layer({ type: LayerType.TEXT, name: 'Headline', opacity: 0.8 });
   text.text = defaultTextProps({
@@ -223,7 +225,7 @@ suite('io / .pkd lossless round trip', async (t) => {
   t.gt(blob.size, 1000, 'and it is not trivially small');
   const buf = await blob.arrayBuffer();
   const magic = String.fromCharCode(...new Uint8Array(buf, 0, 8));
-  t.eq(magic, 'PIKADO01', 'the file starts with the PIKADO01 magic');
+  t.eq(magic, 'PIKADO02', 'the file starts with the PIKADO02 magic');
 
   const out = await loadPKD(buf);
   assertFixture(t, doc, out, 'pkd', true);
@@ -469,7 +471,7 @@ function shapeDoc(t, name, shape, w = 220, h = 180) {
   const doc = t.doc(w, h, null, name);
   doc.layers.length = 0;
   const layer = new Layer({ name, type: LayerType.SHAPE, shape });
-  layer.canvas = rasterizeShapeLayer(layer, doc);
+  rasterizeShapeLayer(layer, doc);
   doc.layers.push(layer);
   doc.invalidate();
   return { doc, layer };
@@ -628,7 +630,7 @@ suite('io / PSD write -> read -> write is byte-identical', async (t) => {
   doc.layers.length = 0;
   const addShape = (name, shape) => {
     const l = new Layer({ name, type: LayerType.SHAPE, shape });
-    l.canvas = rasterizeShapeLayer(l, doc);
+    rasterizeShapeLayer(l, doc);
     doc.layers.push(l);
   };
   const addText = (name, text) => {
@@ -727,12 +729,11 @@ suite('io / a PSD full of empty layers does not allocate a canvas for each', asy
   const doc = await readPSD(buf);
 
   const layers = doc.flatLayers();
-  const distinct = new Set(layers.map((l) => l.canvas).filter(Boolean));
+  const distinct = new Set(layers.map((l) => l.pixelKey()).filter(Boolean));
   t.gt(layers.length, N, 'every layer came back');
   /*
-   * The pixel-less layers share one blank canvas. Safe because Layer.beginEdit()
-   * clones unconditionally before any write, so a layer stops sharing the moment
-   * it is painted on. Verified to fail by restoring
+   * The pixel-less layers share one blank canvas. Region commits install a
+   * private buffer when one is painted on. Verified to fail by restoring
    * `canvas || createCanvas(doc.width, doc.height)`: distinct rises to 17.
    */
   t.lt(distinct.size, 4, `pixel-less layers share a blank (${distinct.size} distinct canvases for ${layers.length} layers)`);
@@ -752,19 +753,18 @@ suite('io / sharing a blank canvas cannot leak one layer\'s paint into another',
 
   const empties = doc.flatLayers().filter((l) => /^empty/.test(l.name));
   t.gt(empties.length, 1, 'there are several empty layers to share between');
-  const before = empties[0].canvas;
-  t.is(empties[1].canvas, before, 'they do start out sharing one buffer');
+  const before = empties[0].pixelKey();
+  t.is(empties[1].pixelKey(), before, 'they do start out sharing one buffer');
 
-  // Painting on one must not touch the others — this is the whole safety
-  // argument for sharing. Verified to fail by removing the cloneCanvas from
-  // Layer.beginEdit(): the fill shows up on every empty layer at once.
+  // A region commit must leave the shared source untouched for the other layers.
   doc.beginEdit(empties[0]);
-  const c = empties[0].canvas.getContext('2d');
-  c.fillStyle = '#ff0000';
-  c.fillRect(0, 0, W, H);
+  t.paint(empties[0], (c) => {
+    c.fillStyle = '#ff0000';
+    c.fillRect(0, 0, W, H);
+  });
   doc.commit('paint one');
 
-  t.ok(empties[0].canvas !== empties[1].canvas, 'editing one gives it a private buffer');
+  t.isNot(empties[0].pixelKey(), empties[1].pixelKey(), 'editing one gives it a private buffer');
   t.pixel(empties[1].canvas, 10, 10, '0,0,0,0', 'and leaves its neighbour untouched');
 });
 
@@ -777,9 +777,10 @@ suite('io / an oversized PSD is offered flattened rather than opened blindly', a
   const src = t.doc(W, H, '#ffffff', 'big');
   for (let i = 0; i < N; i += 1) {
     const l = createRasterLayer(W, H, `l${i}`);
-    const c = l.canvas.getContext('2d');
-    c.fillStyle = `hsl(${i * 40} 70% 50%)`;
-    c.fillRect(i * 20, i * 12, 60, 60);
+    t.paint(l, (c) => {
+      c.fillStyle = `hsl(${i * 40} 70% 50%)`;
+      c.fillRect(i * 20, i * 12, 60, 60);
+    });
     src.layers.unshift(l);
   }
   const buf = await (await writePSD(src)).arrayBuffer();
@@ -821,11 +822,51 @@ suite('io / memoryUse counts what is really held', async (t) => {
 
   const a = createRasterLayer(100, 100, 'a');
   const b = createRasterLayer(100, 100, 'b');
-  b.canvas = a.canvas;                      // deliberately sharing
+  b.setPixelSource(a.getPixelSource().canvas); // deliberately sharing
   doc.layers.unshift(a);
   doc.layers.unshift(b);
 
   t.eq(doc.memoryUse(), base + 100 * 100 * 4, 'a shared buffer is counted once, not twice');
+});
+
+suite('io / PSD preserves off-canvas pixels and independent mask rectangles', async (t) => {
+  const doc = t.doc(16, 12, '#ffffff', 'PSD full sources');
+  const pixels = createCanvas(7, 5);
+  ctx2d(pixels).fillStyle = '#ff0000';
+  ctx2d(pixels).fillRect(0, 0, 7, 5);
+  const mask = createCanvas(3, 2);
+  ctx2d(mask).fillStyle = '#000000';
+  ctx2d(mask).fillRect(0, 0, 3, 2);
+  const partial = new Layer({ name: 'Partial' });
+  partial.setPixelSource(pixels, -4, 9, doc);
+  partial.setMaskSource(mask, -2, 11, 255, doc);
+  partial.maskLinked = false;
+  const outside = new Layer({ name: 'Outside' });
+  outside.setPixelSource(pixels, 40, -10, doc);
+  outside.setMaskSource(mask, 42, -9, 0, doc);
+  outside.maskLinked = true;
+  doc.layers = [partial, outside];
+  const sourceKey = partial.pixelKey();
+  const reopened = await readPSD(await (await writePSD(doc)).arrayBuffer());
+  t.is(partial.pixelKey(), sourceKey, 'PSD export does not replace the original complete source');
+  for (const [name, x, y, mx, my, defaultValue, linked] of [
+    ['Partial', -4, 9, -2, 11, 255, false], ['Outside', 40, -10, 42, -9, 0, true],
+  ]) {
+    const layer = reopened.flatLayers().find((l) => l.name === name);
+    t.ok(layer, `${name}: off-canvas layer survived PSD import`);
+    if (!layer) continue;
+    const source = layer.getPixelSource();
+    t.eq([source.x, source.y, source.canvas.width, source.canvas.height], [x, y, 7, 5], `${name}: full pixel rectangle survives`);
+    t.eq(t.mad(t.bytes(source.canvas), t.bytes(pixels)), 0, `${name}: all pixel bytes survive`);
+    const restoredMask = layer.getMaskSource();
+    t.eq([restoredMask.x, restoredMask.y, restoredMask.canvas.width, restoredMask.canvas.height, restoredMask.defaultValue],
+      [mx, my, 3, 2, defaultValue], `${name}: independent mask rectangle and outside coverage survive`);
+    t.eq(t.mad(t.bytes(restoredMask.canvas), t.bytes(mask)), 0, `${name}: all mask bytes survive`);
+    t.eq(layer.maskLinked, linked, `${name}: mask link state survives`);
+  }
+  partial.translatePixels(2147483648 + 10, 0, doc);
+  await t.throws(() => writePSD(doc), 'PSD refuses coordinates it cannot encode instead of wrapping them');
+  t.eq(partial.getPixelSource().x, 2147483648 + 6, 'failed PSD export leaves the original layer position intact');
 });
 
 suite('io / adjustments Photoshop can actually read', async (t) => {

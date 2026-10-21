@@ -148,6 +148,7 @@ export function histogramForCanvas(canvas, channel = 'rgb') {
 }
 
 const docCache = new WeakMap();
+const layerCache = new WeakMap();
 
 /**
  * Histogram of a document's flattened composite. Cached against the composite
@@ -172,12 +173,13 @@ export function currentHistogram() {
   const doc = app.activeDoc;
   if (!doc) return emptyHistogram();
   const layer = doc.activeLayer();
-  if (layer && layer.canvas && !layer.editingMask) {
-    const cached = docCache.get(layer.canvas);
-    if (cached) return cached;
-    const hist = histogramForCanvas(layer.canvas);
-    // Layer canvases are copy-on-write, so identity keying stays correct.
-    docCache.set(layer.canvas, hist);
+  const source = layer?.getPixelSource();
+  if (source && !layer.editingMask) {
+    const key = `${source.x},${source.y},${doc.width},${doc.height}`;
+    const cached = layerCache.get(layer);
+    if (cached?.canvas === source.canvas && cached.key === key) return cached.hist;
+    const hist = histogramForCanvas(layer.projectPixels(doc));
+    layerCache.set(layer, { canvas: source.canvas, key, hist });
     if (hist.count > 0) return hist;
   }
   return histogramForDocument(doc);

@@ -28,8 +28,12 @@ count plus source pixels. These checks do not guarantee recovery from browser OO
 `flush` waits for prior insertion and pending document saves, then persists the
 session pointer. Normal `dispose` saves first and releases the lock only on
 success; failed saves restore editing. `{ discard: true }` skips unsaved work and
-is reserved for a host-confirmed discard. Downloads preserve the existing `.pkd`
-format. Embedded mode disables offline/PWA setup and built-in AI commands/dialogs.
+is reserved for a host-confirmed discard. Downloads use `.pkd` v2 (`PIKADO02`),
+retaining complete layer sources, positions and masks outside the document.
+The new reader also opens v1; older readers reject v2. First autosave upgrades
+retain a v1 checkpoint atomically in the same user/project partition. Recovery
+is explicit and preserves newer work separately; a static deployment rollback
+does not downgrade project data. Embedded mode disables offline/PWA setup and built-in AI commands/dialogs.
 The static page's stale-SW recovery never runs in embedded mode.
 
 ## Development and validation

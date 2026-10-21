@@ -1,4 +1,5 @@
 import { t } from '../i18n.js';
+import { commitPaintSurface } from '../edit/pixels.js';
 /**
  * The pen group: pen, freeform pen, curvature pen and the three
  * add/delete/convert point tools.
@@ -241,7 +242,9 @@ function fillPathWithForeground(doc, subpaths) {
     tc.globalCompositeOperation = 'source-over';
   }
   doc.beginEdit(layer);
-  ctx2d(layer.paintTarget()).drawImage(tmp, 0, 0);
+  const target = layer.paintTarget();
+  ctx2d(target).drawImage(tmp, 0, 0);
+  commitPaintSurface(doc, layer, target, doc.selection.active ? doc.selection.bounds() : null);
   doc.commit('Fill Path');
 }
 
@@ -267,6 +270,8 @@ function strokePathWithBrush(doc, subpaths) {
   }
   if (!drew) { app.toast('That path has nothing to stroke.', 'warn'); return; }
   stroke.flush();
+  if (!stroke.dirty) return;
+  commitPaintSurface(doc, layer, stroke.target, stroke.dirty);
   doc.commit('Stroke Path');
 }
 

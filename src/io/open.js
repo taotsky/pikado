@@ -2,8 +2,8 @@ import './open.css';
 import { app } from '../core/app.js';
 import { t } from '../i18n.js';
 import { PikaDocument } from '../core/document.js';
-import { createRasterLayer } from '../core/layer.js';
-import { createCanvas, ctx2d, el, readFileAsArrayBuffer, readFileAsText } from '../core/util.js';
+import { Layer, LayerType } from '../core/layer.js';
+import { createCanvas, cloneCanvas, ctx2d, el, readFileAsArrayBuffer, readFileAsText } from '../core/util.js';
 import { getComposite } from '../render/compositor.js';
 import { readPSD } from './psd-read.js';
 import { importSVG } from './svg.js';
@@ -124,8 +124,8 @@ async function decodeGifFrames(blob) {
 
 function documentFromCanvas(canvas, name) {
   const doc = new PikaDocument({ width: canvas.width, height: canvas.height, name });
-  const layer = createRasterLayer(canvas.width, canvas.height, 'Background');
-  ctx2d(layer.canvas).drawImage(canvas, 0, 0);
+  const layer = new Layer({ type: LayerType.RASTER, name: 'Background' });
+  layer.setPixelSource(cloneCanvas(canvas), 0, 0, doc);
   layer.isBackground = true;
   layer.locked = { ...layer.locked, position: true };
   doc.layers = [layer];
@@ -139,8 +139,8 @@ function documentFromCanvas(canvas, name) {
 function documentFromFrames(frames, name) {
   const doc = new PikaDocument({ width: frames[0].width, height: frames[0].height, name });
   doc.layers = frames.map((frame, i) => {
-    const layer = createRasterLayer(doc.width, doc.height, `Frame ${i + 1}`);
-    ctx2d(layer.canvas).drawImage(frame, 0, 0);
+    const layer = new Layer({ type: LayerType.RASTER, name: `Frame ${i + 1}` });
+    layer.setPixelSource(cloneCanvas(frame), 0, 0, doc);
     return layer;
   });
   doc.activeLayerId = doc.layers[0].id;
@@ -154,18 +154,18 @@ function documentFromFrames(frames, name) {
  * Place a canvas into an open document as a new layer, scaled to fit.
  *
  * Exported because this is also what a drag between two open Pikado documents
- * lands on (`src/ui/cross-doc-drag.js`). The contain-fit is the point: a layer
- * buffer is document-sized with no offset, so drawing the source at its own
- * size would put everything past the edge somewhere it is not stored.
+ * lands on (`src/ui/cross-doc-drag.js`). Keep the existing contain-fit rule.
  */
 export function placeAsLayer(doc, source, name) {
-  const layer = createRasterLayer(doc.width, doc.height, name);
+  const layer = new Layer({ type: LayerType.RASTER, name });
   const scale = Math.min(1, doc.width / source.width, doc.height / source.height);
   const w = Math.max(1, Math.round(source.width * scale));
   const h = Math.max(1, Math.round(source.height * scale));
-  const c = ctx2d(layer.canvas);
+  const pixels = createCanvas(w, h);
+  const c = ctx2d(pixels);
   c.imageSmoothingQuality = 'high';
-  c.drawImage(source, Math.round((doc.width - w) / 2), Math.round((doc.height - h) / 2), w, h);
+  c.drawImage(source, 0, 0, w, h);
+  layer.setPixelSource(pixels, Math.round((doc.width - w) / 2), Math.round((doc.height - h) / 2), doc);
   doc.addLayer(layer);
   doc.commit('Place');
   app.toast(t('Placed “{name}” as a new layer', { name }), 'ok');
