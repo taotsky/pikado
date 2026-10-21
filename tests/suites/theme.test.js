@@ -56,7 +56,7 @@ suite('theme / default preferences follow theme while custom colours survive', (
     applyTheme('light');
     applyStoredPreferences();
     const light = getComputedStyle(root);
-    test.eq(light.getPropertyValue('--accent').trim(), '#5946d1', 'applying default preferences retains the light accent');
+    test.eq(light.getPropertyValue('--accent').trim(), '#4dbcba', 'applying default preferences retains the light accent');
     test.eq(light.getPropertyValue('--void').trim(), '#d0d0d0', 'applying default preferences retains the light surround');
     applyTheme('dark');
     test.eq(getComputedStyle(root).getPropertyValue('--void').trim(), '#121212', 'default surround follows subsequent dark theme');

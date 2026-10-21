@@ -2,6 +2,7 @@ import { el } from '../core/util.js';
 import { t as translate } from '../i18n.js';
 import { app } from '../core/app.js';
 import { brandMark, BRAND } from './brand.js';
+import { embedded } from '../embed/mode.js';
 import { icon } from './icons.js';
 import { confirmDialog } from './dialog.js';
 import { IS_MAC } from '../commands/registry.js';
@@ -123,9 +124,9 @@ function header() {
 
   return el('header.pk-wc-head', {},
     el('div.pk-wc-lock', {},
-      el('span.pk-wc-mark', { html: brandMark({ size: 56, title: BRAND.name }) }),
+      !embedded ? el('span.pk-wc-mark', { html: brandMark({ size: 56, title: BRAND.name }) }) : null,
       el('div', {},
-        el('div.pk-wc-word', { text: BRAND.name }),
+        !embedded ? el('div.pk-wc-word', { text: BRAND.name }) : null,
         el('div.pk-wc-tag', { text: translate(BRAND.tagline) })
       )
     ),

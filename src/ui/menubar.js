@@ -12,6 +12,7 @@ import { addAdjustmentLayer } from '../layers/ops.js';
 import { toolGroups } from '../tools/base.js';
 import './menubar.css';
 import { brandLock, BRAND, installFavicon } from './brand.js';
+import { embedded } from '../embed/mode.js';
 
 /**
  * The application menu bar.
@@ -47,9 +48,11 @@ export function buildMenubar(rootEl) {
   bar.root = rootEl;
   rootEl.replaceChildren();
 
-  rootEl.appendChild(
-    el('div.pk-brand', { title: `${BRAND.name} — ${t(BRAND.tagline)}`, html: brandLock({ size: 21, wordSize: 15 }) })
-  );
+  if (!embedded) {
+    rootEl.appendChild(
+      el('div.pk-brand', { title: `${BRAND.name} — ${t(BRAND.tagline)}`, html: brandLock({ size: 21, wordSize: 15 }) })
+    );
+  }
 
   bar.menus = el('nav.pk-menus', { role: 'menubar' });
   rootEl.appendChild(bar.menus);

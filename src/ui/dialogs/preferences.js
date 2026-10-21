@@ -4,7 +4,6 @@ import { app } from '../../core/app.js';
 import { el, clamp255 } from '../../core/util.js';
 import { parseColor, toHex } from '../../core/color.js';
 import { Dialog, buildForm } from '../dialog.js';
-import { BRAND } from '../brand.js';
 import { applyTheme } from '../../theme.js';
 
 /**
@@ -23,7 +22,7 @@ export const PREF_DEFAULTS = {
   resetColorsOnLaunch: false,
   /* Default colours inherit the current theme. Only different, custom colours
      are written onto the root by applyStoredPreferences(). */
-  accent: BRAND.violet,
+  accent: '#4dbcba',
   canvasBg: '#121212', // --void: strictly neutral, so it never biases the image
   panelWidth: 304,
   toolbarWidth: 50,
@@ -284,10 +283,12 @@ export function applyStoredPreferences() {
   const root = document.documentElement;
   const accent = toHex(parseColor(p.accent));
   if (accent === toHex(parseColor(PREF_DEFAULTS.accent))) {
-    for (const name of ['--accent', '--accent-hi', '--accent-soft']) root.style.removeProperty(name);
+    for (const name of ['--accent', '--accent-hi', '--accent-soft', '--accent-fg', '--accent-hi-fg']) root.style.removeProperty(name);
   } else {
     root.style.setProperty('--accent', accent);
     root.style.setProperty('--accent-hi', shade(accent, 0.09));
+    root.style.setProperty('--accent-fg', '#ffffff');
+    root.style.setProperty('--accent-hi-fg', '#ffffff');
     const a = parseColor(accent);
     root.style.setProperty('--accent-soft', `rgba(${a.r},${a.g},${a.b},0.24)`);
   }

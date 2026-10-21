@@ -4,7 +4,7 @@
    Direction: a quiet, precise studio instrument. Chrome recedes so the picture
    is the only saturated thing on screen. Surfaces are separated by contrast and
    soft elevation rather than the hard 1px grid of a traditional editor, corners
-   are generous, and exactly one accent (violet) marks state.
+   are generous, and exactly one accent (teal) marks state.
 
    Two rules the palette obeys:
      1. The canvas surround is strictly NEUTRAL grey. Any colour cast there
@@ -48,17 +48,19 @@
   --text-faint: #61616e;
 
   /* --- brand + state --------------------------------------------------- */
-  --accent: #7c6af6;
-  --accent-hi: #9184ff;
-  --accent-lo: #6354e0;
-  --accent-dim: rgba(124, 106, 246, 0.16);
-  --accent-ring: rgba(124, 106, 246, 0.5);
+  --accent: #4dbcba;
+  --accent-hi: #68c9c7;
+  --accent-lo: #399f9d;
+  --accent-dim: rgba(77, 188, 186, 0.16);
+  --accent-ring: rgba(77, 188, 186, 0.5);
+  --accent-fg: #102f2e;
+  --accent-hi-fg: var(--accent-fg);
   --cyan: #35d0e8;
   --coral: #ff7a5e;
   --danger: #f2555a;
   --ok: #43c98a;
   --warn: #f0b45c;
-  --brand-grad: linear-gradient(135deg, #7c6af6, #35d0e8);
+  --brand-grad: linear-gradient(135deg, #4dbcba, #399f9d);
 
   /* --- radii ----------------------------------------------------------- */
   --r-xs: 4px;
@@ -129,11 +131,12 @@
   --text: #2f3039;
   --text-dim: #4d4d59;
   --text-faint: #575762;
-  --accent: #5946d1;
-  --accent-hi: #5140bb;
-  --accent-lo: #4935bb;
-  --accent-dim: rgba(89, 70, 209, .12);
-  --accent-ring: #6b57dd;
+  --accent: #4dbcba;
+  --accent-hi: #1d6260;
+  --accent-lo: #399f9d;
+  --accent-dim: rgba(77, 188, 186, .12);
+  --accent-ring: #1d6260;
+  --accent-hi-fg: #ffffff;
   --danger: #c82b37;
   --ok: #137a4c;
   --warn: #8c5a0b;
@@ -353,11 +356,11 @@ input, textarea, [contenteditable] { user-select: text; -webkit-user-select: tex
 .pk-btn.primary {
   background: var(--accent);
   border-color: transparent;
-  color: #fff;
+  color: var(--accent-fg);
   box-shadow: var(--sh-1), inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
-.pk-btn.primary:hover { background: var(--accent-hi); }
-.pk-btn.primary:active { background: var(--accent-lo); }
+.pk-btn.primary:hover { background: var(--accent-hi); color: var(--accent-hi-fg); }
+.pk-btn.primary:active { background: var(--accent-lo); color: var(--accent-fg); }
 .pk-btn.subtle { background: transparent; border-color: var(--hair-2); color: var(--text); box-shadow: none; }
 .pk-btn.subtle:hover { background: var(--s3); color: var(--text-hi); }
 .pk-btn.danger { background: var(--danger); border-color: transparent; color: #fff; }

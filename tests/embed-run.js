@@ -65,12 +65,25 @@ async function smoke() {
   const first = frame();
   const ready = await first.ready;
   assert(ready.buildCommit === 'development', 'ready identifies actual dev build');
+  assert(!first.iframe.contentDocument.querySelector('#menubar .pk-brand'), 'embedded menu bar omits the Pikado brand');
+  assert(!first.iframe.contentDocument.querySelector('.pk-welcome .pk-wc-mark, .pk-welcome .pk-wc-word'), 'empty embedded welcome omits the Pikado logo and name');
+  assert(first.iframe.contentDocument.querySelector('.pk-welcome .pk-wc-tag')?.textContent === '图像工作室', 'embedded welcome retains its studio heading');
+  await new Promise((resolve) => {
+    const menu = first.iframe.contentDocument.getElementById('menubar');
+    const observer = new MutationObserver(() => { if (menu.querySelector('.pk-menu-btn')) finish(); });
+    const timeout = setTimeout(finish, 3000);
+    function finish() { observer.disconnect(); clearTimeout(timeout); resolve(); }
+    observer.observe(menu, { childList: true, subtree: true });
+    if (menu.querySelector('.pk-menu-btn')) finish();
+  });
+  assert(first.iframe.contentDocument.querySelectorAll('#menubar [role="menubar"] button').length > 0, 'embedded menu commands remain available');
   assert((await first.call('get-targets')).documents.length === 0, 'new partition is empty');
   const canvas = document.createElement('canvas'); canvas.width = 8; canvas.height = 8;
   const context = canvas.getContext('2d'); context.fillStyle = '#ff0000'; context.fillRect(0, 0, 8, 8);
   const blob = await new Promise((resolve) => canvas.toBlob(resolve));
   const payload = { docId: null, layerId: null, images: [{ blob, name: 'red' }, { blob, name: 'second' }] };
   const inserted = await first.call('insert-images', payload, 'dedup');
+  assert(first.iframe.contentDocument.querySelector('#menubar .pk-doc-name')?.textContent === 'red', 'embedded document name remains visible');
   const duplicate = await first.call('insert-images', payload, 'dedup');
   assert(inserted.docId === duplicate.docId, 'duplicate insert returns same response');
   assert((await first.call('get-targets')).documents.length === 1, 'duplicate request creates only one document');

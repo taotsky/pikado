@@ -34,9 +34,9 @@ export const BRAND = {
  * them in one exported object stops the old Adobe blue creeping back in.
  */
 export const OVERLAY = {
-  accent: '#7C6AF6',
-  accentHi: '#9B8CFF',
-  accentSoft: 'rgba(124, 106, 246, 0.75)',
+  accent: '#4DBCBA',
+  accentHi: '#68C9C7',
+  accentSoft: 'rgba(77, 188, 186, 0.75)',
   handleFill: '#FFFFFF',
   handleStroke: 'rgba(10, 10, 14, 0.9)',
   guide: '#35D0E8',

@@ -1,4 +1,5 @@
 import { app } from '../core/app.js';
+import { embedded } from '../embed/mode.js';
 import { t, historyLabel } from '../i18n.js';
 import { el, uid, createCanvas, formatBytes, clamp } from '../core/util.js';
 import { registerCommand, registerCommands, getCommand } from './registry.js';
@@ -2276,7 +2277,7 @@ export const MENU_TREE = [
   },
   {
     label: 'Help',
-    items: ['help.ai-guide', '---', 'help.about', '---', 'edit.keyboard-shortcuts'],
+    items: ['help.ai-guide', '---', ...(!embedded ? ['help.about', '---'] : []), 'edit.keyboard-shortcuts'],
   },
 ];
 
