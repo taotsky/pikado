@@ -1,4 +1,5 @@
 import { el, formatBytes, clamp, rafThrottle } from '../core/util.js';
+import { t } from '../i18n.js';
 import { app } from '../core/app.js';
 import './statusbar.css';
 
@@ -63,7 +64,7 @@ export function buildStatusBar(rootEl) {
   if (!rootEl) return;
   rootEl.replaceChildren();
 
-  const zoomInput = el('input.pk-input.pk-sb-zoom', { type: 'text', value: '100', title: 'Zoom level' });
+  const zoomInput = el('input.pk-input.pk-sb-zoom', { type: 'text', value: '100', title: t('Zoom level') });
   const commitZoom = () => {
     const v = parseFloat(String(zoomInput.value).replace(/[^0-9.\-]/g, ''));
     if (!Number.isFinite(v) || v <= 0) { syncZoom(); return; }
@@ -78,10 +79,10 @@ export function buildStatusBar(rootEl) {
     if (e.key === 'Enter') { e.stopPropagation(); commitZoom(); zoomInput.blur(); }
   });
 
-  const zoomSelect = el('select.pk-select.pk-sb-zoomsel', { title: 'Zoom presets' },
-    el('option', { value: '', text: 'Custom' }),
-    el('option', { value: 'fit', text: 'Fit on Screen' }),
-    el('option', { value: 'fill', text: 'Fill Screen' }),
+  const zoomSelect = el('select.pk-select.pk-sb-zoomsel', { title: t('Zoom presets') },
+    el('option', { value: '', text: t('Custom') }),
+    el('option', { value: 'fit', text: t('Fit on Screen') }),
+    el('option', { value: 'fill', text: t('Fill Screen') }),
     ...ZOOM_PRESETS.map((z) => el('option', { value: String(z), text: `${z}%` }))
   );
   zoomSelect.addEventListener('change', () => {
@@ -100,8 +101,8 @@ export function buildStatusBar(rootEl) {
   });
 
   const dims = el('span.pk-sb-dims');
-  const statusSelect = el('select.pk-select.pk-sb-mode', { title: 'Status information' },
-    ...STATUS_MODES.map((m) => el('option', { value: m, text: m }))
+  const statusSelect = el('select.pk-select.pk-sb-mode', { title: t('Status information') },
+    ...STATUS_MODES.map((m) => el('option', { value: m, text: t(m) }))
   );
   statusSelect.value = statusMode;
   statusSelect.addEventListener('change', () => {
@@ -167,10 +168,10 @@ function sync() {
   syncZoom();
 
   nodes.dims.textContent = doc ? `${doc.width} × ${doc.height} px` : '—';
-  nodes.toolName.textContent = app.tool ? app.tool.name : '—';
-  nodes.memory.textContent = doc ? `Mem: ${formatBytes(doc.memoryUse())}` : 'Mem: —';
+  nodes.toolName.textContent = app.tool ? t(app.tool.name) : '—';
+  nodes.memory.textContent = t('Mem: {memory}', { memory: doc ? formatBytes(doc.memoryUse()) : '—' });
   nodes.statusText.textContent = statusValue(doc);
-  nodes.hint.textContent = hintFor(app.tool);
+  nodes.hint.textContent = t(hintFor(app.tool));
 }
 
 function heapLimit() {
@@ -202,7 +203,7 @@ function statusValue(doc) {
     case 'Timing':
       return `${lastTiming.toFixed(2)}s`;
     case 'Current Tool':
-      return app.tool ? app.tool.name : '—';
+      return app.tool ? t(app.tool.name) : '—';
     default:
       return '—';
   }

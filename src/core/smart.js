@@ -1,6 +1,7 @@
 import { PikaDocument } from './document.js';
 import { Layer, LayerType, createRasterLayer, setSmartSourceCloner } from './layer.js';
 import { app } from './app.js';
+import { t } from '../i18n.js';
 import { uid, createCanvas, ctx2d, ctx2dRead, imageDataToCanvas, download } from './util.js';
 import { compositeDocument, setLayerPreview } from '../render/compositor.js';
 import { getFilter, runFilter } from '../filters/registry.js';
@@ -582,7 +583,7 @@ function applySmartFilters(canvas, s, layer) {
     if (!f.enabled) continue;
     const def = getFilter(f.filterId);
     if (!def) {
-      app.toast(`Smart filter "${f.filterId}" is not registered — skipped.`, 'error');
+      app.toast(t('Smart filter "{id}" is not registered — skipped.', { id: f.filterId }), 'error');
       continue;
     }
     const w = cur.width, h = cur.height;
@@ -1189,7 +1190,7 @@ export function addSmartFilter(doc, layer, filterId, params) {
   }
   const def = getFilter(filterId);
   if (!def) {
-    app.toast(`Unknown filter "${filterId}".`, 'error');
+    app.toast(t('Unknown filter "{id}".', { id: filterId }), 'error');
     return null;
   }
   const entry = {
@@ -1285,11 +1286,11 @@ export async function editSmartFilter(doc, layer, ref) {
   const entry = getSmartFilters(layer)[i];
   const def = getFilter(entry.filterId);
   if (!def) {
-    app.toast(`Filter "${entry.filterId}" is not registered.`, 'error');
+    app.toast(t('Filter "{id}" is not registered.', { id: entry.filterId }), 'error');
     return false;
   }
   if (!def.params || !def.params.length) {
-    app.toast(`${entry.name} has no settings to edit.`);
+    app.toast(t('{name} has no settings to edit.', { name: entry.name }));
     return false;
   }
   const result = await runFilterDialog(doc, layer, def, { ...entry.params }, (params) => {
@@ -1346,7 +1347,7 @@ async function runFilterDialog(doc, layer, def, state, buildFilters) {
 export async function promptSmartFilter(doc, layer, filterId, preset) {
   const def = getFilter(filterId);
   if (!def) {
-    app.toast(`Unknown filter "${filterId}".`, 'error');
+    app.toast(t('Unknown filter "{id}".', { id: filterId }), 'error');
     return null;
   }
   if (preset || !def.needsDialog || !def.params || !def.params.length) {

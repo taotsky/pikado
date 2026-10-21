@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { registerTool } from './base.js';
 import { app } from '../core/app.js';
 import { PaintStroke, brushOptionDescriptors, brushFromOptions } from '../paint/brush-engine.js';
@@ -57,7 +58,7 @@ export function historySourceCanvasFor(doc, layer, { warn = true } = {}) {
   const entry = states[historySourceIndex(doc)];
   const snap = entry && entry.state ? findLayerSnapshot(entry.state.layers, layer.id) : null;
   if (!snap) {
-    if (warn) app.toast(`"${layer.name}" does not exist in the history source state.`, 'warn');
+    if (warn) app.toast(t('"{name}" does not exist in the history source state.', { name: layer.name }), 'warn');
     return null;
   }
   const cv = layer.editingMask ? snap.mask : snap.canvas;
@@ -129,11 +130,11 @@ class ArtHistoryTool extends BrushToolBase {
         ...tweakDefaults(brushOptionDescriptors({ smoothing: false, airbrush: false }), { size: 12, hardness: 70, opacity: 100, flow: 80 }),
         { key: 'style', label: 'Style', type: 'select', default: 'tight-short',
           options: [
-            { value: 'tight-short', label: 'Tight Short' },
-            { value: 'loose-medium', label: 'Loose Medium' },
-            { value: 'dab', label: 'Dab' },
-            { value: 'tight-curl', label: 'Tight Curl' },
-            { value: 'loose-curl', label: 'Loose Curl' },
+            { value: 'tight-short', label: t('Tight Short') },
+            { value: 'loose-medium', label: t('Loose Medium') },
+            { value: 'dab', label: t('Dab') },
+            { value: 'tight-curl', label: t('Tight Curl') },
+            { value: 'loose-curl', label: t('Loose Curl') },
           ] },
         { key: 'area', label: 'Area', type: 'slider', min: 1, max: 500, step: 1, default: 50, unit: 'px' },
         { key: 'tolerance', label: 'Tolerance', type: 'slider', min: 0, max: 100, step: 1, default: 0, unit: '%' },

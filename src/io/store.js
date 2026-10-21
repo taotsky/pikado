@@ -1,3 +1,5 @@
+import { t } from '../i18n.js';
+
 /**
  * Local project storage, backed by IndexedDB.
  *
@@ -148,7 +150,7 @@ async function getOne(storeName, key) {
 export async function putDoc(rec, { keepIds = [] } = {}) {
   if (!rec || !rec.id || !(rec.data instanceof Blob)) throw new Error('putDoc needs an id and a data blob');
   if (rec.data.size > DOC_LIMIT_BYTES) {
-    const err = new Error(`Project is too large to keep locally (${(rec.data.size / 1048576).toFixed(0)} MB)`);
+    const err = new Error(t('Project is too large to keep locally ({size} MB)', { size: (rec.data.size / 1048576).toFixed(0) }));
     err.code = 'too-large';
     throw err;
   }

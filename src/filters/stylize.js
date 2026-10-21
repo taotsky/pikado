@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { registerFilter, makeRandom, separableConvolve, gaussianKernel } from './registry.js';
 import { app } from '../core/app.js';
 import { createCanvas, imageDataToCanvas, getImageData, clamp, clamp255, deg2rad, lerp } from '../core/util.js';
@@ -63,10 +64,10 @@ registerFilter({
     {
       key: 'mode', label: 'Mode', type: 'select', default: 'normal',
       options: [
-        { value: 'normal', label: 'Normal' },
-        { value: 'darken', label: 'Darken Only' },
-        { value: 'lighten', label: 'Lighten Only' },
-        { value: 'anisotropic', label: 'Anisotropic' },
+        { value: 'normal', label: t('Normal') },
+        { value: 'darken', label: t('Darken Only') },
+        { value: 'lighten', label: t('Lighten Only') },
+        { value: 'anisotropic', label: t('Anisotropic') },
       ],
     },
     { key: 'amount', label: 'Amount', type: 'slider', min: 1, max: 100, step: 1, default: 25 },
@@ -167,13 +168,13 @@ registerFilter({
   params: [
     {
       key: 'shape', label: 'Type', type: 'radio', default: 'blocks',
-      options: [{ value: 'blocks', label: 'Blocks' }, { value: 'pyramids', label: 'Pyramids' }],
+      options: [{ value: 'blocks', label: t('Blocks') }, { value: 'pyramids', label: t('Pyramids') }],
     },
     { key: 'size', label: 'Size', type: 'slider', min: 2, max: 255, step: 1, default: 30, unit: 'px' },
     { key: 'depth', label: 'Depth', type: 'slider', min: 1, max: 255, step: 1, default: 30 },
     {
       key: 'depthMode', label: 'Depth Mode', type: 'radio', default: 'random',
-      options: [{ value: 'random', label: 'Random' }, { value: 'level', label: 'Level-based' }],
+      options: [{ value: 'random', label: t('Random') }, { value: 'level', label: t('Level-based') }],
     },
     { key: 'solidFront', label: 'Solid Front Faces', type: 'checkbox', default: false, when: (s) => s.shape === 'blocks' },
     { key: 'maskIncomplete', label: 'Mask Incomplete Blocks', type: 'checkbox', default: false },
@@ -511,10 +512,10 @@ registerFilter({
     {
       key: 'fill', label: 'Fill Empty Area With', type: 'radio', default: 'background',
       options: [
-        { value: 'background', label: 'Background Color' },
-        { value: 'foreground', label: 'Foreground Color' },
-        { value: 'inverse', label: 'Inverse Image' },
-        { value: 'unaltered', label: 'Unaltered Image' },
+        { value: 'background', label: t('Background Color') },
+        { value: 'foreground', label: t('Foreground Color') },
+        { value: 'inverse', label: t('Inverse Image') },
+        { value: 'unaltered', label: t('Unaltered Image') },
       ],
     },
   ],
@@ -570,7 +571,7 @@ registerFilter({
     { key: 'level', label: 'Level', type: 'slider', min: 0, max: 255, step: 1, default: 128 },
     {
       key: 'edge', label: 'Edge', type: 'radio', default: 'lower',
-      options: [{ value: 'lower', label: 'Lower' }, { value: 'upper', label: 'Upper' }],
+      options: [{ value: 'lower', label: t('Lower') }, { value: 'upper', label: t('Upper') }],
     },
   ],
   apply(imageData, p) {
@@ -612,11 +613,11 @@ registerFilter({
   params: [
     {
       key: 'method', label: 'Method', type: 'radio', default: 'wind',
-      options: [{ value: 'wind', label: 'Wind' }, { value: 'blast', label: 'Blast' }, { value: 'stagger', label: 'Stagger' }],
+      options: [{ value: 'wind', label: t('Wind') }, { value: 'blast', label: t('Blast') }, { value: 'stagger', label: t('Stagger') }],
     },
     {
       key: 'direction', label: 'Direction', type: 'radio', default: 'right',
-      options: [{ value: 'right', label: 'From The Right' }, { value: 'left', label: 'From The Left' }],
+      options: [{ value: 'right', label: t('From The Right') }, { value: 'left', label: t('From The Left') }],
     },
   ],
   apply(imageData, p) {

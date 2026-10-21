@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { Tool, registerTool } from './base.js';
 import { app } from '../core/app.js';
 import { createCanvas, clamp, uid, rad2deg } from '../core/util.js';
@@ -65,11 +66,11 @@ function copyToClipboard(text, what) {
   const clip = navigator.clipboard;
   if (clip && clip.writeText) {
     clip.writeText(text)
-      .then(() => app.toast(`Copied ${text}`, 'ok'))
-      .catch(() => app.toast(`Clipboard blocked — ${what} is ${text}`, 'warn'));
+      .then(() => app.toast(t('Copied {text}', { text }), 'ok'))
+      .catch(() => app.toast(t('Clipboard blocked — {what} is {text}', { what: t(what), text }), 'warn'));
     return;
   }
-  app.toast(`Clipboard unavailable — ${what} is ${text}`, 'warn');
+  app.toast(t('Clipboard unavailable — {what} is {text}', { what: t(what), text }), 'warn');
 }
 
 /* ------------------------------------------------------------------ */
@@ -77,13 +78,13 @@ function copyToClipboard(text, what) {
 /* ------------------------------------------------------------------ */
 
 const SAMPLE_SIZES = [
-  { value: 1, label: 'Point Sample' },
-  { value: 3, label: '3 by 3 Average' },
-  { value: 5, label: '5 by 5 Average' },
-  { value: 11, label: '11 by 11 Average' },
-  { value: 31, label: '31 by 31 Average' },
-  { value: 51, label: '51 by 51 Average' },
-  { value: 101, label: '101 by 101 Average' },
+  { value: 1, label: t('Point Sample') },
+  { value: 3, label: t('3 by 3 Average') },
+  { value: 5, label: t('5 by 5 Average') },
+  { value: 11, label: t('11 by 11 Average') },
+  { value: 31, label: t('31 by 31 Average') },
+  { value: 51, label: t('51 by 51 Average') },
+  { value: 101, label: t('101 by 101 Average') },
 ];
 
 class EyedropperTool extends Tool {
@@ -100,7 +101,7 @@ class EyedropperTool extends Tool {
         { key: 'sampleSize', type: 'select', label: 'Sample Size', default: 1, options: SAMPLE_SIZES },
         {
           key: 'sample', type: 'select', label: 'Sample', default: 'all',
-          options: [{ value: 'all', label: 'All Layers' }, { value: 'layer', label: 'Current Layer' }],
+          options: [{ value: 'all', label: t('All Layers') }, { value: 'layer', label: t('Current Layer') }],
         },
         { key: 'showRing', type: 'checkbox', label: 'Show Sampling Ring', default: true },
       ],
@@ -238,7 +239,7 @@ class ColorSamplerTool extends Tool {
         { key: 'sampleSize', type: 'select', label: 'Sample Size', default: 1, options: SAMPLE_SIZES },
         {
           key: 'sample', type: 'select', label: 'Sample', default: 'all',
-          options: [{ value: 'all', label: 'All Layers' }, { value: 'layer', label: 'Current Layer' }],
+          options: [{ value: 'all', label: t('All Layers') }, { value: 'layer', label: t('Current Layer') }],
         },
         {
           type: 'button', label: 'Clear All',
@@ -280,7 +281,7 @@ class ColorSamplerTool extends Tool {
       return;
     }
     if (list.length >= MAX_SAMPLERS) {
-      this.app.toast(`A document can hold ${MAX_SAMPLERS} colour samplers.`);
+      this.app.toast(t('A document can hold {count} colour samplers.', { count: MAX_SAMPLERS }));
       return;
     }
     list.push({ x: Math.round(e.x), y: Math.round(e.y) });
@@ -666,7 +667,7 @@ class NoteTool extends Tool {
   }
 
   async edit(doc, note) {
-    const text = await promptDialog(`Note by ${note.author}`, note.text, 'Note');
+    const text = await promptDialog(t('Note by {author}', { author: note.author }), note.text, 'Note');
     if (text == null) return;
     note.text = text;
     doc.touch('notes');

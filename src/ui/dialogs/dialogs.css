@@ -428,7 +428,7 @@
 }
 
 .pkd-keys-table tr:last-child td { border-bottom: none; }
-.pkd-keys-table tr:hover td { background: rgba(255, 255, 255, .035); }
+.pkd-keys-table tr:hover td { background: rgba(var(--ui-ink), .035); }
 
 /* The command id is tertiary: it identifies, it does not need to be read. */
 .pkd-keys-table td .pk-hint {

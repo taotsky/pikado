@@ -1,3 +1,4 @@
+import { t } from '../../i18n.js';
 import { app } from '../../core/app.js';
 import { el } from '../../core/util.js';
 import { decodeImage } from '../../io/decode.js';
@@ -21,7 +22,7 @@ import {
  */
 export async function showSmartTransformDialog(doc, layer) {
   if (!isSmartLayer(layer)) {
-    app.toast('Select a Smart Object layer first.');
+    app.toast(t('Select a Smart Object layer first.'));
     return false;
   }
   const s = layer.smart;
@@ -46,18 +47,18 @@ export async function showSmartTransformDialog(doc, layer) {
   }, s.sourceWidth, s.sourceHeight);
 
   const result = await paramDialog({
-    title: 'Transform Smart Object',
+    title: t('Transform Smart Object'),
     width: 340,
     state,
     params: [
-      { key: 'x', label: 'Center X', type: 'number', step: 1, unit: 'px' },
-      { key: 'y', label: 'Center Y', type: 'number', step: 1, unit: 'px' },
-      { key: 'linked', label: 'Constrain proportions', type: 'checkbox' },
-      { key: 'scaleX', label: 'Width', type: 'number', min: 0.1, max: 4000, step: 0.1, unit: '%' },
-      { key: 'scaleY', label: 'Height', type: 'number', min: 0.1, max: 4000, step: 0.1, unit: '%', when: (v) => !v.linked },
+      { key: 'x', label: t('Center X'), type: 'number', step: 1, unit: 'px' },
+      { key: 'y', label: t('Center Y'), type: 'number', step: 1, unit: 'px' },
+      { key: 'linked', label: t('Constrain proportions'), type: 'checkbox' },
+      { key: 'scaleX', label: t('Width'), type: 'number', min: 0.1, max: 4000, step: 0.1, unit: '%' },
+      { key: 'scaleY', label: t('Height'), type: 'number', min: 0.1, max: 4000, step: 0.1, unit: '%', when: (v) => !v.linked },
       {
-        key: 'angle', label: 'Rotate', type: 'angle',
-        hint: `Source is ${s.sourceWidth} × ${s.sourceHeight} px — every change resamples it from scratch.`,
+        key: 'angle', label: t('Rotate'), type: 'angle',
+        hint: t('Source is {width} × {height} px — every change resamples it from scratch.', { width: s.sourceWidth, height: s.sourceHeight }),
       },
     ],
     onPreview: (v) => {
@@ -73,7 +74,7 @@ export async function showSmartTransformDialog(doc, layer) {
     setSmartTransform(doc, layer, before, { commit: false });
     return false;
   }
-  setSmartTransform(doc, layer, matrixFor(result), { label: 'Transform Smart Object' });
+  setSmartTransform(doc, layer, matrixFor(result), { label: t('Transform Smart Object') });
   return true;
 }
 
@@ -84,15 +85,15 @@ export async function showSmartTransformDialog(doc, layer) {
  */
 export async function showReplaceContentsDialog(doc, layer) {
   if (!isSmartLayer(layer)) {
-    app.toast('Select a Smart Object layer first.');
+    app.toast(t('Select a Smart Object layer first.'));
     return false;
   }
   const file = await pickImageFile();
   if (!file) return false;
-  return app.busy('Replace Contents', async () => {
+  return app.busy(t('Replace Contents'), async () => {
     const img = await decodeImage(file);
     replaceContents(doc, layer, img, 'Replace Contents');
-    app.toast(`Replaced with "${file.name}".`, 'ok');
+    app.toast(t('Replaced with "{filename}".', { filename: file.name }), 'ok');
     return true;
   });
 }

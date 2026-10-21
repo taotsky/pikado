@@ -1,6 +1,7 @@
 import './dialogs.css';
 import { app } from '../../core/app.js';
 import { el } from '../../core/util.js';
+import { t } from '../../i18n.js';
 import { Dialog, confirmDialog } from '../dialog.js';
 import { toHex, toCss, parseColor } from '../../core/color.js';
 import { createGroupLayer } from '../../core/layer.js';
@@ -18,12 +19,12 @@ import { getPref } from './preferences.js';
 /* ------------------------------------------------------------------ */
 
 export const UNIT_OPTIONS = [
-  { value: 'px', label: 'Pixels' },
-  { value: 'in', label: 'Inches' },
-  { value: 'cm', label: 'Centimeters' },
-  { value: 'mm', label: 'Millimeters' },
-  { value: 'pt', label: 'Points' },
-  { value: 'pica', label: 'Picas' },
+  { value: 'px', label: t('Pixels') },
+  { value: 'in', label: t('Inches') },
+  { value: 'cm', label: t('Centimeters') },
+  { value: 'mm', label: t('Millimeters') },
+  { value: 'pt', label: t('Points') },
+  { value: 'pica', label: t('Picas') },
 ];
 
 /** Pixels per one unit at the given resolution (pixels per inch). */
@@ -56,8 +57,8 @@ export function roundForUnit(value, unit) {
 
 /** Resolution display helpers ('ppi' = pixels/inch, 'ppcm' = pixels/cm). */
 export const RES_UNITS = [
-  { value: 'ppi', label: 'Pixels/Inch' },
-  { value: 'ppcm', label: 'Pixels/Centimeter' },
+  { value: 'ppi', label: t('Pixels/Inch') },
+  { value: 'ppcm', label: t('Pixels/Centimeter') },
 ];
 
 export function resToUnit(ppi, resUnit) {
@@ -125,17 +126,17 @@ const PRESETS = {
 };
 
 const BACKGROUNDS = [
-  { value: 'white', label: 'White' },
-  { value: 'black', label: 'Black' },
-  { value: 'background', label: 'Background Color' },
-  { value: 'transparent', label: 'Transparent' },
-  { value: 'custom', label: 'Custom...' },
+  { value: 'white', label: t('White') },
+  { value: 'black', label: t('Black') },
+  { value: 'background', label: t('Background Color') },
+  { value: 'transparent', label: t('Transparent') },
+  { value: 'custom', label: t('Custom...') },
 ];
 
 const COLOR_MODES = [
-  { value: 'rgb', label: 'RGB Color' },
-  { value: 'grayscale', label: 'Grayscale' },
-  { value: 'bitmap', label: 'Bitmap' },
+  { value: 'rgb', label: t('RGB Color') },
+  { value: 'grayscale', label: t('Grayscale') },
+  { value: 'bitmap', label: t('Bitmap') },
 ];
 
 let untitledCount = 0;
@@ -161,7 +162,7 @@ export async function showNewDocumentDialog() {
     preset: 'Web Large 1920 × 1080',
   };
 
-  const dlg = new Dialog({ title: 'New Document', width: 700, className: 'pkd-newdoc' });
+  const dlg = new Dialog({ title: t('New Document'), width: 700, className: 'pkd-newdoc' });
 
   /* --- preset column --------------------------------------------------- */
   const cats = el('div.pkd-cats');
@@ -179,7 +180,7 @@ export async function showNewDocumentDialog() {
             syncAll();
           },
         },
-        el('span', { text: p.name }),
+        el('span', { text: t(p.name) }),
         el('small', { text: `${p.w} × ${p.h} px · ${p.res} ppi` })
         )
       )
@@ -190,7 +191,7 @@ export async function showNewDocumentDialog() {
     cats.replaceChildren(
       ...Object.keys(PRESETS).map((c) =>
         el('button.pkd-cat' + (state.category === c ? '.active' : ''), {
-          type: 'button', text: c,
+          type: 'button', text: t(c),
           onclick: () => {
             state.category = c;
             renderCats();
@@ -208,25 +209,25 @@ export async function showNewDocumentDialog() {
   const widthInput = el('input.pk-input', { type: 'number', min: 1, step: 1 });
   const heightInput = el('input.pk-input', { type: 'number', min: 1, step: 1 });
   const unitSelect = el('select.pk-select', {},
-    ...UNIT_OPTIONS.map((u) => el('option', { value: u.value, text: u.label })));
+    ...UNIT_OPTIONS.map((u) => el('option', { value: u.value, text: t(u.label) })));
   const resInput = el('input.pk-input', { type: 'number', min: 1, step: 1 });
   const resSelect = el('select.pk-select', {},
-    ...RES_UNITS.map((u) => el('option', { value: u.value, text: u.label })));
+    ...RES_UNITS.map((u) => el('option', { value: u.value, text: t(u.label) })));
 
   const orient = el('div.pkd-seg');
-  const portraitBtn = el('button', { type: 'button', text: 'Portrait', onclick: () => setOrientation('portrait') });
-  const landscapeBtn = el('button', { type: 'button', text: 'Landscape', onclick: () => setOrientation('landscape') });
+  const portraitBtn = el('button', { type: 'button', text: t('Portrait'), onclick: () => setOrientation('portrait') });
+  const landscapeBtn = el('button', { type: 'button', text: t('Landscape'), onclick: () => setOrientation('landscape') });
   orient.append(portraitBtn, landscapeBtn);
 
   const artboardsInput = el('input', { type: 'checkbox' });
   artboardsInput.addEventListener('change', () => { state.artboards = artboardsInput.checked; });
 
   const modeSelect = el('select.pk-select', {},
-    ...COLOR_MODES.map((m) => el('option', { value: m.value, text: m.label })));
+    ...COLOR_MODES.map((m) => el('option', { value: m.value, text: t(m.label) })));
   modeSelect.addEventListener('change', () => { state.mode = modeSelect.value; });
 
   const bgSelect = el('select.pk-select', {},
-    ...BACKGROUNDS.map((b) => el('option', { value: b.value, text: b.label })));
+    ...BACKGROUNDS.map((b) => el('option', { value: b.value, text: t(b.label) })));
   const bgSwatch = el('button.pk-color-swatch', { type: 'button' });
   const bgPicker = el('input', { type: 'color', value: '#ffffff', style: { display: 'none' } });
   bgSwatch.addEventListener('click', () => bgPicker.click());
@@ -325,9 +326,9 @@ export async function showNewDocumentDialog() {
     const inH = state.px.h / state.res;
     summary.replaceChildren(
       el('div', {}, el('b', { text: `${state.px.w} × ${state.px.h} px` })),
-      el('div', { text: `${inW.toFixed(2)} × ${inH.toFixed(2)} in at ${Math.round(state.res)} ppi` }),
+      el('div', { text: `${inW.toFixed(2)} × ${inH.toFixed(2)} ${t('Inches')} · ${Math.round(state.res)} ppi` }),
       el('div', { text: `${(inW * 2.54).toFixed(2)} × ${(inH * 2.54).toFixed(2)} cm` }),
-      el('div', { text: `Flat memory ≈ ${mb.toFixed(1)} MB` })
+      el('div', { text: `${t('Flat memory')} ≈ ${mb.toFixed(1)} MB` })
     );
   }
 
@@ -337,31 +338,31 @@ export async function showNewDocumentDialog() {
     syncFields();
   }
 
-  const field = (label, ...nodes) => el('div.pk-field', {}, el('label', { text: label }), ...nodes);
+  const field = (label, ...nodes) => el('div.pk-field', {}, el('label', { text: t(label) }), ...nodes);
 
   dlg.setBody(
     el('div.pkd-cols', {},
-      el('div.pkd-presets', {}, el('div.pkd-section', { text: 'Presets' }), cats, list),
+      el('div.pkd-presets', {}, el('div.pkd-section', { text: t('Presets') }), cats, list),
       el('div.pkd-col.grow', {},
         field('Name', nameInput),
         el('div.pkd-row', {},
           field('Width', widthInput),
           field('Height', heightInput),
-          el('div.pk-field', {}, el('label', { text: 'Units' }), unitSelect)
+          el('div.pk-field', {}, el('label', { text: t('Units') }), unitSelect)
         ),
         el('div.pkd-row', {},
           field('Resolution', resInput),
           el('div.pk-field', {}, el('label', { text: ' ' }), resSelect)
         ),
         el('div.pkd-row', {},
-          el('div.pk-field', {}, el('label', { text: 'Orientation' }), orient),
-          el('div.pk-field', {}, el('label', { text: 'Artboards' }),
-            el('label.pk-check', {}, artboardsInput, el('span', { text: 'Wrap content in an artboard' })))
+          el('div.pk-field', {}, el('label', { text: t('Orientation') }), orient),
+          el('div.pk-field', {}, el('label', { text: t('Artboards') }),
+            el('label.pk-check', {}, artboardsInput, el('span', { text: t('Wrap content in an artboard') })))
         ),
         el('div.pkd-row', {},
           field('Color Mode', modeSelect),
           field('Background Contents', bgSelect),
-          el('div.pk-field.fixed', {}, el('label', { text: 'Color' }), bgSwatch, bgPicker)
+          el('div.pk-field.fixed', {}, el('label', { text: t('Color') }), bgSwatch, bgPicker)
         ),
         previewBox,
         summary
@@ -370,8 +371,8 @@ export async function showNewDocumentDialog() {
   );
 
   dlg.setButtons([
-    { label: 'Cancel', value: null, subtle: true },
-    { label: 'Create', primary: true, onClick: (d) => { d.close({ ...state, px: { ...state.px } }); return false; } },
+    { label: t('Cancel'), value: null, subtle: true },
+    { label: t('Create'), primary: true, onClick: (d) => { d.close({ ...state, px: { ...state.px } }); return false; } },
   ]);
 
   syncAll();
@@ -381,8 +382,8 @@ export async function showNewDocumentDialog() {
   const limit = getPref('maxDocPixels', 80) * 1e6;
   if (result.px.w * result.px.h > limit) {
     const ok = await confirmDialog(
-      `${result.px.w} × ${result.px.h} px is ${(result.px.w * result.px.h / 1e6).toFixed(1)} megapixels, above the ${getPref('maxDocPixels', 80)} MP limit set in Preferences. Create it anyway?`,
-      'Large document', 'Create'
+      t('{width} × {height} px is {megapixels} megapixels, above the {limit} MP limit set in Preferences. Create it anyway?', { width: result.px.w, height: result.px.h, megapixels: (result.px.w * result.px.h / 1e6).toFixed(1), limit: getPref('maxDocPixels', 80) }),
+      t('Large document'), t('Create')
     );
     if (!ok) return null;
   }

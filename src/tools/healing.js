@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { Tool, registerTool } from './base.js';
 import { app } from '../core/app.js';
 import { EffectStroke, brushOptionDescriptors, brushFromOptions } from '../paint/brush-engine.js';
@@ -343,9 +344,9 @@ class SpotHealingTool extends BrushToolBase {
         ...tweakDefaults(brushOptionDescriptors({ opacity: false, flow: false, airbrush: false }), { size: 30, hardness: 100 }),
         { key: 'type', label: 'Type', type: 'radio', default: 'content-aware',
           options: [
-            { value: 'content-aware', label: 'Content-Aware' },
-            { value: 'texture', label: 'Create Texture' },
-            { value: 'proximity', label: 'Proximity Match' },
+            { value: 'content-aware', label: t('Content-Aware') },
+            { value: 'texture', label: t('Create Texture') },
+            { value: 'proximity', label: t('Proximity Match') },
           ] },
       ],
     });
@@ -404,8 +405,8 @@ class HealingBrushTool extends BrushToolBase {
         ...tweakDefaults(brushOptionDescriptors({ opacity: false, flow: false, airbrush: false }), { size: 30, hardness: 100 }),
         { key: 'source', label: 'Source', type: 'radio', default: 'sampled',
           options: [
-            { value: 'sampled', label: 'Sampled' },
-            { value: 'pattern', label: 'Pattern' },
+            { value: 'sampled', label: t('Sampled') },
+            { value: 'pattern', label: t('Pattern') },
           ] },
         { key: 'pattern', label: 'Pattern', type: 'select', options: patternOptions(), default: 'grain',
           when: (s) => s.source === 'pattern' },
@@ -599,16 +600,16 @@ class PatchTool extends Tool {
       options: [
         { key: 'mode', label: 'Mode', type: 'radio', default: 'normal',
           options: [
-            { value: 'normal', label: 'Normal' },
-            { value: 'content-aware', label: 'Content-Aware' },
+            { value: 'normal', label: t('Normal') },
+            { value: 'content-aware', label: t('Content-Aware') },
           ] },
         { key: 'patchSource', label: 'Patch', type: 'radio', default: 'source',
           options: [
-            { value: 'source', label: 'Source' },
-            { value: 'destination', label: 'Destination' },
+            { value: 'source', label: t('Source') },
+            { value: 'destination', label: t('Destination') },
           ] },
         { key: 'transparent', label: 'Transparent', type: 'checkbox', default: false,
-          hint: 'Transfer texture only, keeping the destination colour' },
+          hint: t('Transfer texture only, keeping the destination colour') },
       ],
     });
     this.app = app;

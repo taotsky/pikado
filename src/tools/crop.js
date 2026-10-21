@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { Tool, registerTool } from './base.js';
 import { app } from '../core/app.js';
 import { Selection } from '../core/selection.js';
@@ -189,12 +190,12 @@ class CropTool extends Tool {
         {
           key: 'ratio', label: 'Ratio', type: 'select', default: 'free',
           options: [
-            { value: 'free', label: 'Unconstrained' },
-            { value: 'original', label: 'Original Ratio' },
+            { value: 'free', label: t('Unconstrained') },
+            { value: 'original', label: t('Original Ratio') },
             { value: '1:1', label: '1:1' },
             { value: '4:3', label: '4:3' },
             { value: '16:9', label: '16:9' },
-            { value: 'custom', label: 'Custom' },
+            { value: 'custom', label: t('Custom') },
           ],
         },
         { key: 'customW', label: 'W', type: 'number', min: 1, step: 1, default: 4, when: (s) => s.ratio === 'custom' },

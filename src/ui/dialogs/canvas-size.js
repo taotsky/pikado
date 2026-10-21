@@ -1,3 +1,4 @@
+import { t } from '../../i18n.js';
 import './dialogs.css';
 import { app } from '../../core/app.js';
 import { el, createCanvas, formatBytes } from '../../core/util.js';
@@ -24,13 +25,13 @@ const ARROWS = {
 };
 
 const EXTENSION_COLORS = [
-  { value: 'background', label: 'Background' },
-  { value: 'foreground', label: 'Foreground' },
-  { value: 'white', label: 'White' },
-  { value: 'black', label: 'Black' },
-  { value: 'gray', label: '50% Gray' },
-  { value: 'transparent', label: 'Transparent' },
-  { value: 'custom', label: 'Other...' },
+  { value: 'background', label: t('Background') },
+  { value: 'foreground', label: t('Foreground') },
+  { value: 'white', label: t('White') },
+  { value: 'black', label: t('Black') },
+  { value: 'gray', label: t('50% Gray') },
+  { value: 'transparent', label: t('Transparent') },
+  { value: 'custom', label: t('Other...') },
 ];
 
 function extensionCss(kind, custom) {
@@ -69,12 +70,12 @@ export async function showCanvasSizeDialog(doc = app.activeDoc) {
     custom: '#ffffff',
   };
 
-  const dlg = new Dialog({ title: 'Canvas Size', width: 460, className: 'pkd-canvassize' });
+  const dlg = new Dialog({ title: t('Canvas Size'), width: 460, className: 'pkd-canvassize' });
 
   const current = el('div.pkd-readout');
   const widthInput = el('input.pk-input', { type: 'number', step: 1 });
   const heightInput = el('input.pk-input', { type: 'number', step: 1 });
-  const unitSelect = el('select.pk-select', {}, ...UNIT_OPTIONS.map((u) => el('option', { value: u.value, text: u.label })));
+  const unitSelect = el('select.pk-select', {}, ...UNIT_OPTIONS.map((u) => el('option', { value: u.value, text: t(u.label) })));
   const relativeInput = el('input', { type: 'checkbox' });
   const anchorGrid = el('div.pkd-anchor');
   const extSelect = el('select.pk-select', {}, ...EXTENSION_COLORS.map((c) => el('option', { value: c.value, text: c.label })));
@@ -124,12 +125,12 @@ export async function showCanvasSizeDialog(doc = app.activeDoc) {
     anchorGrid.replaceChildren(
       ...ANCHORS.flat().map((a) =>
         el('button' + (state.anchor === a ? '.active' : ''), {
-          type: 'button', title: a.replace('-', ' '), text: ARROWS[a],
+          type: 'button', title: t(a.replace('-', ' ')), text: ARROWS[a],
           onclick: () => { state.anchor = a; sync(); },
         })
       )
     );
-    anchorGrid.title = `New canvas ${target.w} × ${target.h}`;
+    anchorGrid.title = t('New canvas {width} × {height}', { width: target.w, height: target.h });
   }
 
   function sync(skipInputs) {
@@ -150,31 +151,31 @@ export async function showCanvasSizeDialog(doc = app.activeDoc) {
     buildAnchorGrid();
 
     current.replaceChildren(
-      el('div', {}, 'Current size: ', el('b', { text: formatBytes(origW * origH * 4) })),
+      el('div', {}, t('Current size: '), el('b', { text: formatBytes(origW * origH * 4) })),
       el('div', { text: `${origW} × ${origH} px  (${(origW / res).toFixed(2)} × ${(origH / res).toFixed(2)} in)` })
     );
     const off = anchorOffset(state.anchor, origW, origH, target.w, target.h);
     newReadout.replaceChildren(
-      el('div', {}, 'New size: ', el('b', { text: formatBytes(target.w * target.h * 4) })),
+      el('div', {}, t('New size: '), el('b', { text: formatBytes(target.w * target.h * 4) })),
       el('div', { text: `${target.w} × ${target.h} px` }),
-      el('div', { text: `Existing image lands at ${off.dx}, ${off.dy}` })
+      el('div', { text: t('Existing image lands at {x}, {y}', { x: off.dx, y: off.dy }) })
     );
   }
 
-  const field = (label, ...nodes) => el('div.pk-field', {}, el('label', { text: label }), ...nodes);
+  const field = (label, ...nodes) => el('div.pk-field', {}, el('label', { text: t(label) }), ...nodes);
 
   dlg.setBody(
     el('div.pkd-col', {},
       current,
-      el('div.pkd-section', { text: 'New Size' }),
+      el('div.pkd-section', { text: t('New Size') }),
       el('div.pkd-row', {},
         field('Width', widthInput),
         field('Height', heightInput),
-        el('div.pk-field.fixed', {}, el('label', { text: 'Units' }), unitSelect)
+        el('div.pk-field.fixed', {}, el('label', { text: t('Units') }), unitSelect)
       ),
-      el('label.pk-check', {}, relativeInput, el('span', { text: 'Relative' })),
+      el('label.pk-check', {}, relativeInput, el('span', { text: t('Relative') })),
       el('div.pkd-cols', {},
-        el('div.pk-field', {}, el('label', { text: 'Anchor' }), anchorGrid),
+        el('div.pk-field', {}, el('label', { text: t('Anchor') }), anchorGrid),
         el('div.pkd-col.grow', {},
           field('Canvas Extension Color', el('div.pkd-row', {}, extSelect, extSwatch, extPicker)),
           newReadout
@@ -184,8 +185,8 @@ export async function showCanvasSizeDialog(doc = app.activeDoc) {
   );
 
   dlg.setButtons([
-    { label: 'Cancel', value: null, subtle: true },
-    { label: 'OK', primary: true, onClick: (d) => { d.close({ ...state, target: targetSize() }); return false; } },
+    { label: t('Cancel'), value: null, subtle: true },
+    { label: t('OK'), primary: true, onClick: (d) => { d.close({ ...state, target: targetSize() }); return false; } },
   ]);
 
   sync();
@@ -195,7 +196,7 @@ export async function showCanvasSizeDialog(doc = app.activeDoc) {
   const { w, h } = result.target;
   if (w === origW && h === origH) return null;
 
-  await app.busy('Canvas Size', async () => {
+  await app.busy(t('Canvas Size'), async () => {
     doc.resizeCanvasTo(w, h, result.anchor);
 
     const css = extensionCss(result.extension, result.custom);

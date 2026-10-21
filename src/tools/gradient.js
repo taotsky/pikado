@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { Tool, registerTool } from './base.js';
 import { app } from '../core/app.js';
 import { createCanvas, cloneCanvas, clamp, ctx2dRead, el } from '../core/util.js';
@@ -21,7 +22,7 @@ import './gradient.css';
  * the same way as in the brush engine.
  */
 
-const BLEND_OPTIONS = BLEND_MODES.map((m) => ({ value: m.id, label: m.name }));
+const BLEND_OPTIONS = BLEND_MODES.map((m) => ({ value: m.id, label: t(m.name) }));
 
 /** Alpha-only canvas from a 0..255 coverage mask. */
 function maskToAlphaCanvas(mask, w, h) {
@@ -68,18 +69,18 @@ function paintInk(doc, layer, target, base, ink, mode, opacity, extraClip) {
 /* ------------------------------------------------------------------ */
 
 function showGradientPicker(current) {
-  const d = new Dialog({ title: 'Gradient Picker', width: 470, className: 'pk-grad-dialog' });
+  const d = new Dialog({ title: t('Gradient Picker'), width: 470, className: 'pk-grad-dialog' });
   const grid = el('div.pk-grad-grid');
   for (const g of GRADIENT_PRESETS) {
     const cell = el('button.pk-grad-cell' + (g.id === current ? '.selected' : ''), {
-      type: 'button', title: g.name, onclick: () => d.close(g.id),
+      type: 'button', title: t(g.name), onclick: () => d.close(g.id),
     });
     cell.appendChild(gradientPreviewCanvas(g.stops, 126, 26));
-    cell.appendChild(el('span.pk-grad-name', { text: g.name }));
+    cell.appendChild(el('span.pk-grad-name', { text: t(g.name) }));
     grid.appendChild(cell);
   }
   d.setBody(grid);
-  d.setButtons([{ label: 'Cancel', value: null, subtle: true }]);
+  d.setButtons([{ label: t('Cancel'), value: null, subtle: true }]);
   return d.open();
 }
 
@@ -87,7 +88,7 @@ function renderGradientSwatch(container, state, onChange, p) {
   const btn = el('button.pk-grad-swatch', { type: 'button' });
   const draw = (id) => {
     const preset = getGradientPreset(id) || GRADIENT_PRESETS[0];
-    btn.title = preset.name;
+    btn.title = t(preset.name);
     btn.replaceChildren(gradientPreviewCanvas(preset.stops, 116, 20));
   };
   btn.addEventListener('click', async () => {
@@ -151,11 +152,11 @@ class GradientTool extends Tool {
         {
           key: 'type', type: 'radio', label: '', default: 'linear',
           options: [
-            { value: 'linear', label: 'Linear' },
-            { value: 'radial', label: 'Radial' },
-            { value: 'angle', label: 'Angle' },
-            { value: 'reflected', label: 'Reflected' },
-            { value: 'diamond', label: 'Diamond' },
+            { value: 'linear', label: t('Linear') },
+            { value: 'radial', label: t('Radial') },
+            { value: 'angle', label: t('Angle') },
+            { value: 'reflected', label: t('Reflected') },
+            { value: 'diamond', label: t('Diamond') },
           ],
         },
         { key: 'mode', type: 'select', label: 'Mode', default: 'normal', options: BLEND_OPTIONS },
@@ -404,7 +405,7 @@ function renderPatternSelect(container, state, onChange, p) {
     }
     sel.value = state[p.key];
   };
-  fill([{ value: state[p.key] || '', label: 'Loading…' }]);
+  fill([{ value: state[p.key] || '', label: t('Loading…') }]);
   // Dynamic so an unexpected export shape degrades to an empty list instead of
   // breaking the bundle.
   import('../paint/patterns.js')
@@ -431,7 +432,7 @@ class BucketTool extends Tool {
       options: [
         {
           key: 'fill', type: 'select', label: 'Fill', default: 'foreground',
-          options: [{ value: 'foreground', label: 'Foreground' }, { value: 'pattern', label: 'Pattern' }],
+          options: [{ value: 'foreground', label: t('Foreground') }, { value: 'pattern', label: t('Pattern') }],
         },
         {
           key: 'pattern', type: 'custom', label: 'Pattern', default: '',

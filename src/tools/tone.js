@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { registerTool } from './base.js';
 import { EffectStroke, brushOptionDescriptors, brushFromOptions } from '../paint/brush-engine.js';
 import { clamp255 } from '../core/util.js';
@@ -11,9 +12,9 @@ import { BrushToolBase, tweakDefaults } from './brush.js';
 const TONE_OPTIONS = () => brushOptionDescriptors({ opacity: false, flow: false });
 
 const RANGE_OPTIONS = [
-  { value: 'shadows', label: 'Shadows' },
-  { value: 'midtones', label: 'Midtones' },
-  { value: 'highlights', label: 'Highlights' },
+  { value: 'shadows', label: t('Shadows') },
+  { value: 'midtones', label: t('Midtones') },
+  { value: 'highlights', label: t('Highlights') },
 ];
 
 /** How strongly a pixel of luminance `l` (0..1) belongs to a tonal range. */
@@ -114,8 +115,8 @@ class SpongeTool extends BrushToolBase {
         ...tweakDefaults(TONE_OPTIONS(), { size: 60, hardness: 0 }),
         { key: 'mode', label: 'Mode', type: 'select', default: 'desaturate',
           options: [
-            { value: 'saturate', label: 'Saturate' },
-            { value: 'desaturate', label: 'Desaturate' },
+            { value: 'saturate', label: t('Saturate') },
+            { value: 'desaturate', label: t('Desaturate') },
           ] },
         { key: 'flow', label: 'Flow', type: 'slider', min: 1, max: 100, step: 1, default: 50, unit: '%' },
         { key: 'vibrance', label: 'Vibrance', type: 'checkbox', default: true },

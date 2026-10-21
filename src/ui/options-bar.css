@@ -131,7 +131,7 @@
   white-space: nowrap;
   transition: background .12s ease, color .12s ease;
 }
-.pk-seg-btn:hover { background: rgba(255, 255, 255, .05); color: var(--text); }
+.pk-seg-btn:hover { background: rgba(var(--ui-ink), .05); color: var(--text); }
 .pk-seg-btn.active {
   background: var(--s5);
   color: var(--text-hi);

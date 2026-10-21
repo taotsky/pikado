@@ -1,3 +1,4 @@
+import { t as translateUI } from '../../i18n.js';
 import { registerPanel } from '../panel-host.js';
 import { app } from '../../core/app.js';
 import { el, clamp } from '../../core/util.js';
@@ -50,29 +51,29 @@ const DEFAULT_TEXT = {
 if (!app.textDefaults) app.textDefaults = { ...DEFAULT_TEXT };
 
 const STYLES = [
-  { value: 'regular', label: 'Regular' },
-  { value: 'italic', label: 'Italic' },
-  { value: 'bold', label: 'Bold' },
-  { value: 'bold italic', label: 'Bold Italic' },
+  { value: 'regular', label: translateUI('Regular') },
+  { value: 'italic', label: translateUI('Italic') },
+  { value: 'bold', label: translateUI('Bold') },
+  { value: 'bold italic', label: translateUI('Bold Italic') },
 ];
 
 const ANTIALIAS = [
-  { value: 'none', label: 'None' },
-  { value: 'sharp', label: 'Sharp' },
-  { value: 'crisp', label: 'Crisp' },
-  { value: 'strong', label: 'Strong' },
-  { value: 'smooth', label: 'Smooth' },
+  { value: 'none', label: translateUI('None') },
+  { value: 'sharp', label: translateUI('Sharp') },
+  { value: 'crisp', label: translateUI('Crisp') },
+  { value: 'strong', label: translateUI('Strong') },
+  { value: 'smooth', label: translateUI('Smooth') },
 ];
 
 const TOGGLES = [
-  { key: 'fauxBold', label: 'B', title: 'Faux Bold', className: 'is-bold' },
-  { key: 'fauxItalic', label: 'I', title: 'Faux Italic', className: 'is-italic' },
-  { key: 'underline', label: 'U', title: 'Underline', className: 'is-under' },
-  { key: 'strikethrough', label: 'S', title: 'Strikethrough', className: 'is-strike' },
-  { key: 'allCaps', label: 'TT', title: 'All Caps' },
-  { key: 'smallCaps', label: 'Tt', title: 'Small Caps' },
-  { key: 'superscript', label: 'T¹', title: 'Superscript' },
-  { key: 'subscript', label: 'T₁', title: 'Subscript' },
+  { key: 'fauxBold', label: 'B', title: translateUI('Faux Bold'), className: 'is-bold' },
+  { key: 'fauxItalic', label: 'I', title: translateUI('Faux Italic'), className: 'is-italic' },
+  { key: 'underline', label: 'U', title: translateUI('Underline'), className: 'is-under' },
+  { key: 'strikethrough', label: 'S', title: translateUI('Strikethrough'), className: 'is-strike' },
+  { key: 'allCaps', label: translateUI('TT'), title: translateUI('All Caps') },
+  { key: 'smallCaps', label: translateUI('Tt'), title: translateUI('Small Caps') },
+  { key: 'superscript', label: 'T¹', title: translateUI('Superscript') },
+  { key: 'subscript', label: 'T₁', title: translateUI('Subscript') },
 ];
 
 /** Superscript and subscript cannot both be on. */
@@ -95,7 +96,7 @@ async function rasterize(doc, layer) {
 
 registerPanel({
   id: 'character',
-  title: 'Character',
+  title: translateUI('Character'),
   icon: 'text',
   group: 'bottom',
   order: 4,
@@ -165,8 +166,8 @@ registerPanel({
         if (Number.isFinite(v)) set(key, clamp(v, min, max), false);
       });
       controls.push(() => { if (document.activeElement !== input) input.value = get(key); });
-      return el('label.pkt-field', { title: hint },
-        el('span.pkt-label', { text: label }),
+      return el('label.pkt-field', { title: translateUI(hint) },
+        el('span.pkt-label', { text: translateUI(label) }),
         input,
         unit ? el('span.pk-unit', { text: unit }) : null
       );
@@ -182,7 +183,7 @@ registerPanel({
       sel.addEventListener('change', () => set(key, sel.value, false));
       controls.push(() => { sel.value = get(key); });
       return el('label.pkt-field.pkt-wide', {},
-        el('span.pkt-label', { text: label }),
+        el('span.pkt-label', { text: translateUI(label) }),
         sel
       );
     };
@@ -214,14 +215,14 @@ registerPanel({
         sel.value = current;
       });
       return el('label.pkt-field.pkt-wide', {},
-        el('span.pkt-label', { text: 'Font' }), sel);
+        el('span.pkt-label', { text: translateUI('Font') }), sel);
     };
 
     const checkField = (label, key) => {
       const input = el('input', { type: 'checkbox' });
       input.addEventListener('change', () => set(key, input.checked, false));
       controls.push(() => { input.checked = !!get(key); });
-      return el('label.pk-check.pkt-check', {}, input, el('span', { text: label }));
+      return el('label.pk-check.pkt-check', {}, input, el('span', { text: translateUI(label) }));
     };
 
     /* ---- character section --------------------------------------- */
@@ -239,7 +240,7 @@ registerPanel({
     const colorBtn = colorSwatchButton(
       () => get('color'),
       (c) => set('color', toHex(parseColor(c)), false),
-      { title: 'Text Color', live: false }
+      { title: translateUI('Text Color'), live: false }
     );
     controls.push(() => colorBtn.sync());
 
@@ -251,11 +252,11 @@ registerPanel({
         numField('Leading', 'leading', { min: 0, max: 3000, unit: 'px', hint: '0 = automatic (1.2 × size)' })
       ),
       el('div.pkt-pair', {},
-        numField('Tracking', 'tracking', { min: -1000, max: 1000, hint: 'Letter spacing in 1/1000 em' }),
+        numField('Tracking', 'tracking', { min: -1000, max: 1000, hint: translateUI('Letter spacing in 1/1000 em') }),
         selectField('Kerning', 'kerning', [
-          { value: 'metrics', label: 'Metrics' },
-          { value: 'optical', label: 'Optical' },
-          { value: 'none', label: 'Off' },
+          { value: 'metrics', label: translateUI('Metrics') },
+          { value: 'optical', label: translateUI('Optical') },
+          { value: 'none', label: translateUI('Off') },
         ])
       ),
       el('div.pkt-pair', {},
@@ -264,7 +265,7 @@ registerPanel({
       ),
       el('div.pkt-pair', {},
         numField('Baseline', 'baselineShift', { min: -500, max: 500, unit: 'px' }),
-        el('label.pkt-field', {}, el('span.pkt-label', { text: 'Color' }), colorBtn)
+        el('label.pkt-field', {}, el('span.pkt-label', { text: translateUI('Color') }), colorBtn)
       ),
       toggleStrip,
       selectField('Anti-alias', 'antiAlias', ANTIALIAS)
@@ -274,9 +275,9 @@ registerPanel({
 
     const alignStrip = el('div.pkt-aligns');
     const ALIGNS = [
-      { value: 'left', icon: 'align-left', title: 'Align left' },
-      { value: 'center', icon: 'align-center-h', title: 'Align centre' },
-      { value: 'right', icon: 'align-right', title: 'Align right' },
+      { value: 'left', icon: 'align-left', title: translateUI('Align left') },
+      { value: 'center', icon: 'align-center-h', title: translateUI('Align centre') },
+      { value: 'right', icon: 'align-right', title: translateUI('Align right') },
     ];
     for (const a of ALIGNS) {
       const btn = el('button.pk-icon-btn.pkt-align', { type: 'button', title: a.title, onclick: () => set('align', a.value, false) }, iconEl(a.icon));
@@ -284,7 +285,7 @@ registerPanel({
       alignStrip.appendChild(btn);
     }
     const justifyBtn = el('button.pkt-toggle.pkt-justify', {
-      type: 'button', title: 'Justify', text: 'J',
+      type: 'button', title: translateUI('Justify'), text: 'J',
       onclick: () => set('align', 'justify', false),
     });
     controls.push(() => justifyBtn.classList.toggle('is-on', get('align') === 'justify'));
@@ -311,7 +312,7 @@ registerPanel({
     body.append(
       scope,
       charSection,
-      el('div.pkt-heading', { text: 'Paragraph' }),
+      el('div.pkt-heading', { text: translateUI('Paragraph') }),
       paraSection
     );
 
@@ -320,8 +321,8 @@ registerPanel({
     const sync = () => {
       const l = textLayer();
       scope.textContent = l
-        ? `Editing “${l.name}”`
-        : 'No text layer selected — these are the defaults for the next one.';
+        ? translateUI('Editing “{name}”', { name: l.name })
+        : translateUI('No text layer selected — these are the defaults for the next one.');
       scope.classList.toggle('is-defaults', !l);
       for (const fn of controls) fn();
     };

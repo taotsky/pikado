@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { Tool, registerTool } from './base.js';
 import { app } from '../core/app.js';
 import { Selection } from '../core/selection.js';
@@ -11,10 +12,10 @@ import { cmd, sep } from '../ui/canvas-menu.js';
  */
 
 const ALL_MODES = [
-  { value: 'replace', label: 'New' },
-  { value: 'add', label: 'Add' },
-  { value: 'subtract', label: 'Subtract' },
-  { value: 'intersect', label: 'Intersect' },
+  { value: 'replace', label: t('New') },
+  { value: 'add', label: t('Add') },
+  { value: 'subtract', label: t('Subtract') },
+  { value: 'intersect', label: t('Intersect') },
 ];
 
 /**
@@ -233,9 +234,9 @@ const STYLE_OPTIONS = [
   {
     key: 'style', label: 'Style', type: 'select', default: 'normal',
     options: [
-      { value: 'normal', label: 'Normal' },
-      { value: 'ratio', label: 'Fixed Ratio' },
-      { value: 'size', label: 'Fixed Size' },
+      { value: 'normal', label: t('Normal') },
+      { value: 'ratio', label: t('Fixed Ratio') },
+      { value: 'size', label: t('Fixed Size') },
     ],
   },
   { key: 'ratioW', label: 'Width', type: 'number', min: 0.01, step: 0.01, default: 1, when: (s) => s.style === 'ratio' },

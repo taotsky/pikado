@@ -1,3 +1,4 @@
+import { t as translateUI, historyLabel } from '../../i18n.js';
 import './panels.css';
 import { registerPanel, popupMenu } from '../panel-host.js';
 import { app } from '../../core/app.js';
@@ -18,7 +19,7 @@ import { promptDialog } from '../dialog.js';
 
 registerPanel({
   id: 'history',
-  title: 'History',
+  title: translateUI('History'),
   icon: 'history',
   group: 'bottom',
   order: 1,
@@ -32,7 +33,7 @@ function buildHistoryPanel(bodyEl) {
 
   const snapsEl = el('div.pk-hist-snaps');
   const statesEl = el('div.pk-hist-states');
-  const emptyEl = el('div.pk-panel-empty', { text: 'No document open.' });
+  const emptyEl = el('div.pk-panel-empty', { text: translateUI('No document open.') });
 
   const foot = el('div.pk-hist-foot', {},
     btn('copy', 'Create new document from current state', () => withDoc(newDocumentFromState)),
@@ -113,10 +114,10 @@ function buildHistoryPanel(bodyEl) {
         e.preventDefault();
         if (index < 0) return;
         popupMenu([
-          { label: 'Rename Snapshot…', run: () => renameSnapshot(doc, snap) },
-          { label: 'Delete Snapshot', run: () => { (doc.snapshots || []).splice(index, 1); selectedSnap = -1; refresh(); } },
+          { label: translateUI('Rename Snapshot…'), run: () => renameSnapshot(doc, snap) },
+          { label: translateUI('Delete Snapshot'), run: () => { (doc.snapshots || []).splice(index, 1); selectedSnap = -1; refresh(); } },
           { separator: true },
-          { label: 'New Document from Snapshot', run: () => newDocumentFrom(doc, snap.state, snap.name) },
+          { label: translateUI('New Document from Snapshot'), run: () => newDocumentFrom(doc, snap.state, snap.name) },
         ], e.clientX, e.clientY);
       },
     });
@@ -129,7 +130,7 @@ function buildHistoryPanel(bodyEl) {
     const h = doc.history;
     const rows = h.states.map((s, i) => {
       const row = el('div.pk-hist-item' + (i === h.index ? '.current' : i > h.index ? '.future' : ''), {
-        title: s.label,
+        title: historyLabel(s.label),
         onclick: () => {
           selectedSnap = -1;
           h.goto(i);
@@ -142,8 +143,8 @@ function buildHistoryPanel(bodyEl) {
       });
       row.append(
         el('span.pk-hist-ico', { html: icon(stateIcon(s.label), { size: 14 }) }),
-        el('span.pk-hist-label', { text: s.label }),
-        el('span.pk-hist-brush', { html: icon('history-brush', { size: 12 }), title: 'History Brush source', hidden: doc.historyBrushSource !== i })
+        el('span.pk-hist-label', { text: historyLabel(s.label) }),
+        el('span.pk-hist-brush', { html: icon('history-brush', { size: 12 }), title: translateUI('History Brush source'), hidden: doc.historyBrushSource !== i })
       );
       return row;
     });
@@ -156,7 +157,7 @@ function buildHistoryPanel(bodyEl) {
     const h = doc.history;
     popupMenu([
       {
-        label: 'Set as History Brush source',
+        label: translateUI('Set as History Brush source'),
         checked: doc.historyBrushSource === i,
         run: () => {
           doc.historyBrushSource = doc.historyBrushSource === i ? null : i;
@@ -164,11 +165,11 @@ function buildHistoryPanel(bodyEl) {
         },
       },
       { separator: true },
-      { label: 'New Snapshot from This State', run: () => snapshotFrom(doc, h.states[i]) },
-      { label: 'New Document from This State', run: () => newDocumentFrom(doc, h.states[i].state, h.states[i].label) },
+      { label: translateUI('New Snapshot from This State'), run: () => snapshotFrom(doc, h.states[i]) },
+      { label: translateUI('New Document from This State'), run: () => newDocumentFrom(doc, h.states[i].state, h.states[i].label) },
       { separator: true },
       {
-        label: 'Delete This State and Later',
+        label: translateUI('Delete This State and Later'),
         disabled: i === 0,
         run: () => truncateHistory(doc, i),
       },
@@ -206,7 +207,7 @@ function buildHistoryPanel(bodyEl) {
   }
 
   async function renameSnapshot(doc, snap) {
-    const name = await promptDialog('Snapshot name', snap.name, 'Rename Snapshot');
+    const name = await promptDialog(translateUI('Snapshot name'), snap.name, 'Rename Snapshot');
     if (name == null) return;
     const v = String(name).trim();
     if (v) snap.name = v;
@@ -266,12 +267,12 @@ function buildHistoryPanel(bodyEl) {
     const doc = app.activeDoc;
     if (!doc) return [];
     return [
-      { label: 'New Snapshot', run: () => takeSnapshot(doc) },
-      { label: 'New Document from Current State', run: () => newDocumentFromState(doc) },
+      { label: translateUI('New Snapshot'), run: () => takeSnapshot(doc) },
+      { label: translateUI('New Document from Current State'), run: () => newDocumentFromState(doc) },
       { separator: true },
-      { label: 'Clear History', run: () => { doc.history.clear('Clear History'); refresh(); } },
+      { label: translateUI('Clear History'), run: () => { doc.history.clear('Clear History'); refresh(); } },
       {
-        label: 'Clear History Brush Source',
+        label: translateUI('Clear History Brush Source'),
         disabled: doc.historyBrushSource == null,
         run: () => { doc.historyBrushSource = null; refresh(); },
       },

@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { registerTool } from './base.js';
 import { app } from '../core/app.js';
 import { EffectStroke, brushOptionDescriptors, brushFromOptions } from '../paint/brush-engine.js';
@@ -65,7 +66,7 @@ class SharpenTool extends BrushToolBase {
         ...tweakDefaults(FOCUS_OPTIONS(), { size: 40, hardness: 0 }),
         { key: 'strength', label: 'Strength', type: 'slider', min: 0, max: 100, step: 1, default: 50, unit: '%' },
         { key: 'protectDetail', label: 'Protect Detail', type: 'checkbox', default: true,
-          hint: 'Softer radius that resists halos and noise' },
+          hint: t('Softer radius that resists halos and noise') },
       ],
     });
   }
@@ -113,7 +114,7 @@ class SmudgeTool extends BrushToolBase {
         ...tweakDefaults(FOCUS_OPTIONS(), { size: 40, hardness: 0, smoothing: 30 }),
         { key: 'strength', label: 'Strength', type: 'slider', min: 0, max: 100, step: 1, default: 50, unit: '%' },
         { key: 'fingerPainting', label: 'Finger Painting', type: 'checkbox', default: false,
-          hint: 'Start the smear with the foreground colour' },
+          hint: t('Start the smear with the foreground colour') },
       ],
     });
   }

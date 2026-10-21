@@ -1,3 +1,4 @@
+import { t as translateUI } from '../../i18n.js';
 import { registerPanel } from '../panel-host.js';
 import { app } from '../../core/app.js';
 import { el, uid, createCanvas, ctx2dRead } from '../../core/util.js';
@@ -102,7 +103,7 @@ function nextAlphaName(doc) {
 
 registerPanel({
   id: 'channels',
-  title: 'Channels',
+  title: translateUI('Channels'),
   icon: 'channels',
   group: 'top',
   order: 1,
@@ -219,7 +220,7 @@ registerPanel({
 
     const makeRow = ({ id, name, thumb, eye, onRename, dim }) => {
       const row = el('div.pkch-row' + (selectedId === id ? '.is-selected' : '') + (dim ? '.is-hidden' : ''), {
-        title: `${name} — Ctrl/Cmd-click to load as a selection`,
+        title: translateUI('{name} — Ctrl/Cmd-click to load as a selection', { name }),
       });
       const eyeCell = el('div.pkch-eye');
       if (eye) {
@@ -249,7 +250,7 @@ registerPanel({
       const d = doc();
       list.replaceChildren();
       if (!d) {
-        list.appendChild(el('div.pkch-empty', { text: 'No document open.' }));
+        list.appendChild(el('div.pkch-empty', { text: translateUI('No document open.') }));
         renderFooter();
         return;
       }
@@ -257,9 +258,9 @@ registerPanel({
       if (d.quickMask) {
         list.appendChild(makeRow({
           id: 'quickmask',
-          name: 'Quick Mask',
+          name: translateUI('Quick Mask'),
           thumb: canvasThumb(d.selection.active ? d.selection.toCanvas() : null),
-          eye: { on: true, title: 'Exit Quick Mask', onToggle: toggleQuickMask },
+          eye: { on: true, title: translateUI('Exit Quick Mask'), onToggle: toggleQuickMask },
         }));
       }
 
@@ -275,19 +276,19 @@ registerPanel({
         dim: !allOn,
         eye: {
           on: allOn,
-          title: allOn ? 'Hide all channels' : 'Show all channels',
+          title: translateUI(allOn ? 'Hide all channels' : 'Show all channels'),
           onToggle: toggleCompositeView,
         },
       }));
       for (const [key, name, offset] of [['r', 'Red', 0], ['g', 'Green', 1], ['b', 'Blue', 2]]) {
         list.appendChild(makeRow({
           id: key,
-          name,
+          name: translateUI(name),
           thumb: channelThumb(base, offset),
           dim: !cv[key],
           eye: {
             on: cv[key],
-            title: `${cv[key] ? 'Hide' : 'Show'} the ${name.toLowerCase()} channel`,
+            title: translateUI(cv[key] ? 'Hide the {name} channel' : 'Show the {name} channel', { name: translateUI(name) }),
             onToggle: () => toggleChannelView(key),
           },
         }));
@@ -299,7 +300,7 @@ registerPanel({
           name: ch.name,
           thumb: canvasThumb(ch.canvas),
           onRename: async () => {
-            const next = await promptDialog('Channel name', ch.name, 'Rename Channel');
+            const next = await promptDialog(translateUI('Channel name'), ch.name, 'Rename Channel');
             if (next == null || !next.trim()) return;
             ch.name = next.trim();
             d.commit('Rename Channel');
@@ -312,12 +313,12 @@ registerPanel({
     const renderFooter = () => {
       const d = doc();
       footer.replaceChildren(
-        el('button.pk-icon-btn', { type: 'button', title: 'Load channel as selection', disabled: !d, onclick: () => loadSelection(selectedId) }, iconEl('marquee-rect')),
-        el('button.pk-icon-btn', { type: 'button', title: 'Save selection as channel', disabled: !d, onclick: saveSelection }, iconEl('mask')),
-        el('button.pk-icon-btn' + (d && d.quickMask ? '.active' : ''), { type: 'button', title: 'Toggle Quick Mask', disabled: !d, onclick: toggleQuickMask }, iconEl('adjustment')),
+        el('button.pk-icon-btn', { type: 'button', title: translateUI('Load channel as selection'), disabled: !d, onclick: () => loadSelection(selectedId) }, iconEl('marquee-rect')),
+        el('button.pk-icon-btn', { type: 'button', title: translateUI('Save selection as channel'), disabled: !d, onclick: saveSelection }, iconEl('mask')),
+        el('button.pk-icon-btn' + (d && d.quickMask ? '.active' : ''), { type: 'button', title: translateUI('Toggle Quick Mask'), disabled: !d, onclick: toggleQuickMask }, iconEl('adjustment')),
         el('div.pk-spacer'),
-        el('button.pk-icon-btn', { type: 'button', title: 'New channel', disabled: !d, onclick: newChannel }, iconEl('plus')),
-        el('button.pk-icon-btn', { type: 'button', title: 'Delete channel', disabled: !d, onclick: deleteChannel }, iconEl('trash'))
+        el('button.pk-icon-btn', { type: 'button', title: translateUI('New channel'), disabled: !d, onclick: newChannel }, iconEl('plus')),
+        el('button.pk-icon-btn', { type: 'button', title: translateUI('Delete channel'), disabled: !d, onclick: deleteChannel }, iconEl('trash'))
       );
     };
 

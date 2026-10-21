@@ -1,4 +1,5 @@
 import { app } from '../core/app.js';
+import { t, historyLabel } from '../i18n.js';
 import { el, uid, createCanvas, formatBytes, clamp } from '../core/util.js';
 import { registerCommand, registerCommands, getCommand } from './registry.js';
 import { Dialog, confirmDialog, paramDialog, promptDialog } from '../ui/dialog.js';
@@ -7,7 +8,7 @@ import { showColorPicker } from '../ui/color-picker.js';
 import { gradientParam, normalizeGradient } from '../ui/gradient-editor.js';
 import { Layer, LayerType, createGroupLayer } from '../core/layer.js';
 import { Selection } from '../core/selection.js';
-import { makeTiledCanvas } from '../paint/patterns.js';
+import { makeTiledCanvas, getPattern as builtinPattern } from '../paint/patterns.js';
 
 import * as ops from '../layers/ops.js';
 import * as smart from '../core/smart.js';
@@ -284,7 +285,7 @@ async function openRecent(entry) {
       console.warn('[open-recent]', err);
     }
   }
-  app.toast(`The browser will not reopen "${entry.name}" by itself — pick the file again.`, 'warn', 4200);
+  app.toast(t('The browser will not reopen "{name}" by itself — pick the file again.', { name: entry.name }), 'warn', 4200);
   const input = document.getElementById('file-input');
   if (input) input.click();
 }
@@ -302,7 +303,7 @@ function pickFiles() {
 async function closeDoc(doc) {
   if (!doc) return false;
   if (doc.dirty && getPref('confirmBeforeClosing', true)) {
-    const ok = await confirmDialog(`"${doc.name}" has unsaved changes. Close it anyway?`, 'Close', 'Discard');
+    const ok = await confirmDialog(t('"{name}" has unsaved changes. Close it anyway?', { name: doc.name }), 'Close', 'Discard');
     if (!ok) return false;
   }
   app.closeDocument(doc);
@@ -324,48 +325,48 @@ async function revertDoc(doc) {
   if (!doc.history.canUndo) { app.toast('Nothing to revert to.'); return; }
   doc.history.goto(0);
   doc.dirty = false;
-  app.toast(`Reverted ${doc.name}`, 'ok');
+  app.toast(t('Reverted {name}', { name: doc.name }), 'ok');
 }
 
 async function showFileInfo(doc) {
   const info = doc.info || (doc.info = { title: '', author: '', description: '', copyright: '' });
   const stat = (label, value) => el('div.pkd-row', {},
-    el('span', { text: label, style: { flex: '0 0 130px', color: 'var(--fg-dim)' } }),
+    el('span', { text: t(label), style: { flex: '0 0 130px', color: 'var(--fg-dim)' } }),
     el('span', { text: value })
   );
   const layers = doc.flatLayers();
-  const dlg = new Dialog({ title: 'File Info', width: 460 });
+  const dlg = new Dialog({ title: t('File Info'), width: 460 });
 
   const fields = {};
   const input = (key, label) => {
     const node = el('input.pk-input', { type: 'text', value: info[key] || '' });
     fields[key] = node;
-    return el('div.pk-field', {}, el('label', { text: label }), node);
+    return el('div.pk-field', {}, el('label', { text: t(label) }), node);
   };
   const desc = el('textarea.pk-input.pk-textarea', { rows: 3 });
   desc.value = info.description || '';
 
   dlg.setBody(el('div', {},
-    el('div.pkd-section', { text: 'Description' }),
+    el('div.pkd-section', { text: t('Description') }),
     input('title', 'Document Title'),
     input('author', 'Author'),
-    el('div.pk-field', {}, el('label', { text: 'Description' }), desc),
+    el('div.pk-field', {}, el('label', { text: t('Description') }), desc),
     input('copyright', 'Copyright Notice'),
-    el('div.pkd-section', { text: 'Data' }),
+    el('div.pkd-section', { text: t('Data') }),
     stat('Dimensions', `${doc.width} × ${doc.height} px`),
     stat('Resolution', `${Math.round(doc.resolution || 72)} ppi`),
     stat('Print size', `${(doc.width / (doc.resolution || 72)).toFixed(2)} × ${(doc.height / (doc.resolution || 72)).toFixed(2)} in`),
-    stat('Color mode', doc.colorMode === 'grayscale' ? 'Grayscale' : doc.colorMode === 'bitmap' ? 'Bitmap' : 'RGB Color'),
-    stat('Layers', `${layers.length} (${layers.filter((l) => l.visible).length} visible)`),
+    stat('Color mode', t(doc.colorMode === 'grayscale' ? 'Grayscale' : doc.colorMode === 'bitmap' ? 'Bitmap' : 'RGB Color')),
+    stat('Layers', t('{count} ({visible} visible)', { count: layers.length, visible: layers.filter((l) => l.visible).length })),
     stat('Alpha channels', String(doc.alphaChannels.length)),
     stat('Paths', String(doc.paths.length)),
     stat('Pixel memory', formatBytes(doc.memoryUse())),
     stat('History states', String(doc.history.states.length)),
-    stat('File', doc.filePath || 'Not saved yet'),
-    el('div.pkd-note', { text: 'Description fields are kept with the open document and written into .pkd projects.' })
+    stat('File', doc.filePath || t('Not saved yet')),
+    el('div.pkd-note', { text: t('Description fields are kept with the open document and written into .pkd projects.') })
   ));
   dlg.setButtons([
-    { label: 'Cancel', value: null, subtle: true },
+    { label: t('Cancel'), value: null, subtle: true },
     { label: 'OK', primary: true, onClick: (d) => { d.close(true); return false; } },
   ]);
   const ok = await dlg.open();
@@ -544,14 +545,14 @@ function maskFromCanvas(canvas, w, h) {
 
 async function loadSelection(doc) {
   const sources = [
-    ...doc.alphaChannels.map((c) => ({ value: `chan:${c.id}`, label: `Channel — ${c.name}` })),
-    ...doc.flatLayers().filter((l) => l.canvas).map((l) => ({ value: `layer:${l.id}`, label: `${l.name} Transparency` })),
-    ...doc.flatLayers().filter((l) => l.mask).map((l) => ({ value: `mask:${l.id}`, label: `${l.name} Mask` })),
+    ...doc.alphaChannels.map((c) => ({ value: `chan:${c.id}`, label: t('Channel — {name}', { name: c.name }) })),
+    ...doc.flatLayers().filter((l) => l.canvas).map((l) => ({ value: `layer:${l.id}`, label: t('{name} Transparency', { name: l.name }) })),
+    ...doc.flatLayers().filter((l) => l.mask).map((l) => ({ value: `mask:${l.id}`, label: t('{name} Mask', { name: l.name }) })),
   ];
   if (!sources.length) { app.toast('There is nothing to load a selection from.'); return; }
 
   const result = await paramDialog({
-    title: 'Load Selection',
+    title: t('Load Selection'),
     width: 380,
     preview: false,
     state: { source: sources[0].value, op: 'replace', invert: false },
@@ -560,10 +561,10 @@ async function loadSelection(doc) {
       {
         key: 'op', label: 'Operation', type: 'radio',
         options: [
-          { value: 'replace', label: 'New Selection' },
-          { value: 'add', label: 'Add to Selection' },
-          { value: 'subtract', label: 'Subtract from Selection' },
-          { value: 'intersect', label: 'Intersect with Selection' },
+          { value: 'replace', label: t('New Selection') },
+          { value: 'add', label: t('Add to Selection') },
+          { value: 'subtract', label: t('Subtract from Selection') },
+          { value: 'intersect', label: t('Intersect with Selection') },
         ],
       },
       { key: 'invert', label: 'Invert', type: 'checkbox' },
@@ -706,14 +707,14 @@ function layerViaSelection(doc, cut) {
 
 async function newFillLayer(doc, kind) {
   if (kind === 'solid') {
-    const c = await showColorPicker({ color: toHex(app.foreground), title: 'Color Fill' });
+    const c = await showColorPicker({ color: toHex(app.foreground), title: t('Color Fill') });
     if (!c) return;
     ops.addFillLayer(doc, 'solid', { color: toCss(c) });
     return;
   }
   if (kind === 'gradient') {
     const result = await paramDialog({
-      title: 'Gradient Fill',
+      title: t('Gradient Fill'),
       width: 420,
       preview: false,
       state: {
@@ -733,12 +734,12 @@ async function newFillLayer(doc, kind) {
   const patterns = getPatterns();
   if (!patterns.length) { app.toast('No patterns available — use Edit > Define Pattern first.'); return; }
   const result = await paramDialog({
-    title: 'Pattern Fill',
+    title: t('Pattern Fill'),
     width: 380,
     preview: false,
     state: { pattern: patterns[0].id, scale: 1 },
     params: [
-      { key: 'pattern', label: 'Pattern', type: 'select', options: patterns.map((p) => ({ value: p.id, label: p.name })) },
+      { key: 'pattern', label: 'Pattern', type: 'select', options: patterns.map((p) => ({ value: p.id, label: builtinPattern(p.id)?.name === p.name ? t(p.name) : p.name })) },
       { key: 'scale', label: 'Scale', type: 'slider', min: 0.1, max: 4, step: 0.1 },
       { type: 'label', label: 'A pattern fill is baked into pixels, with a mask you can paint on.' },
     ],
@@ -827,11 +828,11 @@ async function warpTextDialog(doc) {
   };
   doc.beginEdit(l);
   const result = await paramDialog({
-    title: 'Warp Text',
+    title: t('Warp Text'),
     width: 380,
     state: { ...original },
     params: [
-      { key: 'style', label: 'Style', type: 'select', options: WARP_STYLES },
+      { key: 'style', label: 'Style', type: 'select', options: WARP_STYLES.map((option) => ({ ...option, label: t(option.label) })) },
       { key: 'bend', label: 'Bend', type: 'slider', min: -100, max: 100, step: 1, unit: '%', when: (s) => s.style !== 'none' },
       { key: 'h', label: 'Horizontal Distortion', type: 'slider', min: -100, max: 100, step: 1, unit: '%', when: (s) => s.style !== 'none' },
       { key: 'v', label: 'Vertical Distortion', type: 'slider', min: -100, max: 100, step: 1, unit: '%', when: (s) => s.style !== 'none' },
@@ -1082,12 +1083,12 @@ function dedupeGuides(list) {
 
 async function newGuide(doc) {
   const result = await paramDialog({
-    title: 'New Guide',
+    title: t('New Guide'),
     width: 320,
     preview: false,
     state: { axis: 'v', pos: Math.round(doc.width / 2) },
     params: [
-      { key: 'axis', label: 'Orientation', type: 'radio', options: [{ value: 'v', label: 'Vertical' }, { value: 'h', label: 'Horizontal' }] },
+      { key: 'axis', label: 'Orientation', type: 'radio', options: [{ value: 'v', label: t('Vertical') }, { value: 'h', label: t('Horizontal') }] },
       { key: 'pos', label: 'Position', type: 'number', min: 0, unit: 'px' },
     ],
   });
@@ -1100,7 +1101,7 @@ async function newGuide(doc) {
 
 async function newGuideLayout(doc) {
   const result = await paramDialog({
-    title: 'New Guide Layout',
+    title: t('New Guide Layout'),
     width: 380,
     preview: false,
     state: { clear: true, columns: 3, columnGutter: 20, rows: 0, rowGutter: 20, margin: 0 },
@@ -1164,7 +1165,7 @@ function applyWorkspace(name) {
     if (wanted.has(p)) openPanel(p);
     else closePanel(p);
   }
-  app.toast(`${name[0].toUpperCase()}${name.slice(1)} workspace`, 'ok');
+  app.toast(t('{name} workspace', { name: t(`${name[0].toUpperCase()}${name.slice(1)}`) }), 'ok');
 }
 
 function resetWorkspace() {
@@ -1232,20 +1233,20 @@ const NOT_DONE = [
 ];
 
 function showAbout() {
-  const dlg = new Dialog({ title: 'About Pikado', width: 520 });
+  const dlg = new Dialog({ title: t('About Pikado'), width: 520 });
   dlg.setBody(el('div.pkd-about', {},
     el('p', {
-      text: 'Pikado is an image editor that runs entirely in the browser. No pixels leave '
+      text: t('Pikado is an image editor that runs entirely in the browser. No pixels leave '
         + 'your machine — Generative Fill is the one thing that can send any, and it asks first. '
-        + 'Web fonts are downloaded from Google when you use one, which sends nothing of yours.',
+        + 'Web fonts are downloaded from Google when you use one, which sends nothing of yours.'),
     }),
-    el('div.pkd-section', { text: 'What works' }),
-    el('ul', {}, ...DONE.map((t) => el('li', { text: t }))),
-    el('div.pkd-section', { text: 'What is not implemented' }),
-    el('ul', {}, ...NOT_DONE.map((t) => el('li', { text: t }))),
-    el('div.pkd-note', { text: 'Built with plain ES modules and a 2-D canvas. Everything above is checked against the code, not the roadmap.' })
+    el('div.pkd-section', { text: t('What works') }),
+    el('ul', {}, ...DONE.map((text) => el('li', { text: t(text) }))),
+    el('div.pkd-section', { text: t('What is not implemented') }),
+    el('ul', {}, ...NOT_DONE.map((text) => el('li', { text: t(text) }))),
+    el('div.pkd-note', { text: t('Built with plain ES modules and a 2-D canvas. Everything above is checked against the code, not the roadmap.') })
   ));
-  dlg.setButtons([{ label: 'Close', value: true, primary: true }]);
+  dlg.setButtons([{ label: t('Close'), value: true, primary: true }]);
   return dlg.open();
 }
 
@@ -1285,8 +1286,8 @@ registerCommands([
     id: 'edit.undo', label: 'Undo', accel: 'Ctrl+Z',
     dynamicLabel: () => {
       const d = D();
-      if (!d || !d.history.canUndo) return 'Undo';
-      return `Undo ${d.history.states[d.history.index].label}`;
+      if (!d || !d.history.canUndo) return t('Undo');
+      return `${t('Undo')} ${historyLabel(d.history.states[d.history.index].label)}`;
     },
     enabled: () => !!(D() && D().history.canUndo),
     run: () => D().history.undo(),
@@ -1295,8 +1296,8 @@ registerCommands([
     id: 'edit.redo', label: 'Redo', accel: 'Ctrl+Shift+Z',
     dynamicLabel: () => {
       const d = D();
-      if (!d || !d.history.canRedo) return 'Redo';
-      return `Redo ${d.history.states[d.history.index + 1].label}`;
+      if (!d || !d.history.canRedo) return t('Redo');
+      return `${t('Redo')} ${historyLabel(d.history.states[d.history.index + 1].label)}`;
     },
     enabled: () => !!(D() && D().history.canRedo),
     run: () => D().history.redo(),
@@ -1315,8 +1316,8 @@ registerCommands([
     id: 'edit.fade', label: 'Fade…', accel: 'Shift+Ctrl+F',
     dynamicLabel: () => {
       const d = D();
-      if (!d || !img.canFade(d)) return 'Fade…';
-      return `Fade ${d.history.states[d.history.index].label}…`;
+      if (!d || !img.canFade(d)) return t('Fade…');
+      return t('Fade {name}…', { name: historyLabel(d.history.states[d.history.index].label) });
     },
     enabled: () => img.canFade(D()),
     run: () => img.showFadeDialog(D()),
@@ -1630,14 +1631,14 @@ registerCommands([
   },
   {
     id: 'layer.mask.toggle', label: 'Disable',
-    dynamicLabel: () => { const l = activeLayer(); return l && l.mask && !l.maskEnabled ? 'Enable' : 'Disable'; },
+    dynamicLabel: () => { const l = activeLayer(); return t(l && l.mask && !l.maskEnabled ? 'Enable' : 'Disable'); },
     enabled: () => { const l = activeLayer(); return !!(l && l.mask); },
     run: () => ops.toggleMaskEnabled(D()),
   },
 
   {
     id: 'layer.clipping', label: 'Create Clipping Mask', accel: 'Alt+Ctrl+G',
-    dynamicLabel: () => { const l = activeLayer(); return l && l.clipped ? 'Release Clipping Mask' : 'Create Clipping Mask'; },
+    dynamicLabel: () => { const l = activeLayer(); return t(l && l.clipped ? 'Release Clipping Mask' : 'Create Clipping Mask'); },
     enabled: hasLayer,
     run: () => ops.toggleClipping(D()),
   },
@@ -1739,7 +1740,7 @@ registerCommands([
 
   {
     id: 'layer.merge-down', label: 'Merge Down', accel: 'Ctrl+E',
-    dynamicLabel: () => (D() && D().selectedLayers().length > 1 ? 'Merge Layers' : 'Merge Down'),
+    dynamicLabel: () => t(D() && D().selectedLayers().length > 1 ? 'Merge Layers' : 'Merge Down'),
     enabled: hasLayer,
     run: () => { const d = D(); if (d.selectedLayers().length > 1) ops.mergeSelected(d); else ops.mergeDown(d); },
   },
@@ -1749,7 +1750,7 @@ registerCommands([
 
   { id: 'layer.matting.defringe', label: 'Defringe…', enabled: hasPixels, run: async () => {
     const r = await paramDialog({
-      title: 'Defringe', width: 300, preview: false, state: { width: 1 },
+      title: t('Defringe'), width: 300, preview: false, state: { width: 1 },
       params: [{ key: 'width', label: 'Width', type: 'slider', min: 1, max: 10, step: 1, unit: 'px' }],
     });
     if (!r) return;
@@ -1837,7 +1838,7 @@ registerCommands([
   /* --- Filter ----------------------------------------------------- */
   {
     id: 'filter.last', label: 'Last Filter', accel: 'Ctrl+F',
-    dynamicLabel: () => (app.lastFilter ? app.lastFilter.label : 'Last Filter'),
+    dynamicLabel: () => t(app.lastFilter ? app.lastFilter.label : 'Last Filter'),
     enabled: () => hasLayer() && !!app.lastFilter,
     run: () => repeatLastFilter(),
   },
@@ -1967,7 +1968,7 @@ for (let i = 0; i < RECENT_MAX; i++) {
     label: `Recent ${i + 1}`,
     dynamicLabel: () => {
       const e = recentList()[i];
-      return e ? e.name : `Recent ${i + 1}`;
+      return e ? e.name : t('Recent {count}', { count: i + 1 });
     },
     enabled: () => !!recentList()[i],
     run: () => openRecent(recentList()[i]),

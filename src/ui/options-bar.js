@@ -1,4 +1,5 @@
 import { el, clamp } from '../core/util.js';
+import { t } from '../i18n.js';
 import { app } from '../core/app.js';
 import { icon } from './icons.js';
 import { toCss, toHex, parseColor } from '../core/color.js';
@@ -64,14 +65,14 @@ function rebuild() {
   shownSession = app.transformSession || null;
 
   if (!tool) {
-    root.appendChild(el('span.pk-ob-static', { text: 'No tool selected' }));
+    root.appendChild(el('span.pk-ob-static', { text: t('No tool selected') }));
     return;
   }
 
   root.appendChild(
-    el('div.pk-ob-tool', { title: tool.name },
+    el('div.pk-ob-tool', { title: t(tool.name) },
       el('span.pk-ob-tool-ico', { html: icon(tool.icon || tool.id, { size: 18 }) }),
-      el('span.pk-ob-tool-name', { text: tool.name })
+      el('span.pk-ob-tool-name', { text: t(tool.name) })
     )
   );
   root.appendChild(el('div.pk-vsep'));
@@ -142,11 +143,11 @@ const labelOf = (o) => (typeof o === 'object' && o ? o.label : String(o));
 function renderOption(p, tool) {
   if (!p) return null;
   if (p.type === 'separator') return el('div.pk-vsep');
-  if (p.type === 'label') return el('span.pk-ob-static', { text: p.label || '' });
+  if (p.type === 'label') return el('span.pk-ob-static', { text: t(p.label || '') });
   if (p.type === 'button') {
     return el('button.pk-btn.subtle.pk-ob-btn', {
       type: 'button',
-      text: p.label,
+      text: t(p.label),
       onclick: () => p.onClick && p.onClick(tool.state, (k, v) => setValue(tool, k, v)),
     });
   }
@@ -221,7 +222,7 @@ function renderOption(p, tool) {
         const opt = optionsOf(p).find((o) => String(valueOf(o)) === sel.value);
         setValue(tool, p.key, opt == null ? sel.value : valueOf(opt));
       });
-      row.append(el('span.pk-ob-label', { text: p.label || '' }), sel);
+      row.append(el('span.pk-ob-label', { text: t(p.label || '') }), sel);
       register(fill);
       break;
     }
@@ -246,7 +247,7 @@ function renderOption(p, tool) {
         for (const b of buttons) b.classList.toggle('active', b.dataset.value === String(v));
       };
       paint(state[p.key]);
-      row.append(...[p.label ? el('span.pk-ob-label', { text: p.label }) : null, seg].filter(Boolean));
+      row.append(...[p.label ? el('span.pk-ob-label', { text: t(p.label) }) : null, seg].filter(Boolean));
       register(paint);
       break;
     }
@@ -254,7 +255,7 @@ function renderOption(p, tool) {
     case 'checkbox': {
       const input = el('input', { type: 'checkbox', checked: !!state[p.key] });
       input.addEventListener('change', () => setValue(tool, p.key, input.checked));
-      row.append(el('label.pk-check', {}, input, el('span', { text: p.label || '' })));
+      row.append(el('label.pk-check', {}, input, el('span', { text: t(p.label || '') })));
       register((v) => { input.checked = !!v; });
       break;
     }
@@ -274,7 +275,7 @@ function renderOption(p, tool) {
         setValue(tool, p.key, hidden.value);
       });
       swatch.addEventListener('click', () => hidden.click());
-      row.append(...[p.label ? el('span.pk-ob-label', { text: p.label }) : null, swatch, hidden].filter(Boolean));
+      row.append(...[p.label ? el('span.pk-ob-label', { text: t(p.label) }) : null, swatch, hidden].filter(Boolean));
       register((v) => {
         fill.style.background = toCss(parseColor(v || '#000000'));
         hidden.value = safeHex(v);
@@ -285,13 +286,13 @@ function renderOption(p, tool) {
     case 'text': {
       const input = el('input.pk-input.pk-ob-text', { type: 'text', value: state[p.key] ?? '' });
       input.addEventListener('input', () => setValue(tool, p.key, input.value));
-      row.append(...[p.label ? el('span.pk-ob-label', { text: p.label }) : null, input].filter(Boolean));
+      row.append(...[p.label ? el('span.pk-ob-label', { text: t(p.label) }) : null, input].filter(Boolean));
       register((v) => { if (document.activeElement !== input) input.value = v ?? ''; });
       break;
     }
 
     case 'custom': {
-      if (p.label) row.append(el('span.pk-ob-label', { text: p.label }));
+      if (p.label) row.append(el('span.pk-ob-label', { text: t(p.label) }));
       const holder = el('div.pk-ob-custom');
       row.append(holder);
       if (typeof p.render === 'function') {
@@ -312,7 +313,7 @@ function renderOption(p, tool) {
       return null;
   }
 
-  if (p.hint) row.title = p.hint;
+  if (p.hint) row.title = t(p.hint);
   return row;
 }
 
@@ -403,7 +404,7 @@ function openSliderPopover(anchor, p, { min, max, step, tool }) {
   });
 
   const node = el('div.pk-ob-popover', {},
-    el('span.pk-ob-popover-title', { text: p.label || p.key }),
+    el('span.pk-ob-popover-title', { text: t(p.label || p.key) }),
     el('div.pk-slider-row', {}, range, num),
     p.unit ? el('span.pk-unit', { text: p.unit }) : null
   );
@@ -459,8 +460,8 @@ const TRANSFORM_FIELDS = [
   { key: 'y', label: 'Y', unit: 'px', step: 1, fallback: 0 },
   { key: 'width', label: 'W', unit: '%', step: 0.1, fallback: 100 },
   { key: 'height', label: 'H', unit: '%', step: 0.1, fallback: 100 },
-  { key: 'angle', label: 'Angle', unit: '°', step: 0.1, fallback: 0 },
-  { key: 'skewX', label: 'Skew', unit: '°', step: 0.1, fallback: 0 },
+  { key: 'angle', label: t('Angle'), unit: '°', step: 0.1, fallback: 0 },
+  { key: 'skewX', label: t('Skew'), unit: '°', step: 0.1, fallback: 0 },
 ];
 
 function ensureTransformModule() {
@@ -519,14 +520,14 @@ function renderTransform() {
   root.appendChild(el('div.pk-vsep'));
   root.appendChild(
     el('button.pk-icon-btn.pk-ob-cancel', {
-      type: 'button', title: 'Cancel transform (Esc)',
+      type: 'button', title: t('Cancel transform (Esc)'),
       html: icon('close', { size: 15 }),
       onclick: () => endTransform('cancel'),
     })
   );
   root.appendChild(
     el('button.pk-icon-btn.pk-ob-commit', {
-      type: 'button', title: 'Commit transform (Enter)',
+      type: 'button', title: t('Commit transform (Enter)'),
       html: icon('check', { size: 15 }),
       onclick: () => endTransform('commit'),
     })

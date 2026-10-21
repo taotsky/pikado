@@ -2,6 +2,7 @@ import { PikaDocument } from '../core/document.js';
 import { Layer, LayerType, createGroupLayer } from '../core/layer.js';
 import { createCanvas, ctx2d, clamp, uid } from '../core/util.js';
 import { app } from '../core/app.js';
+import { t } from '../i18n.js';
 import { DEFAULT_STYLES } from '../effects/styles.js';
 import { getPattern } from '../paint/patterns.js';
 import { rasterizeTextLayer } from '../text/text-render.js';
@@ -335,7 +336,7 @@ export async function readPSD(arrayBuffer, opts = {}) {
   const signature = r.readString(4);
   if (signature !== '8BPS') throw new Error('Not a Photoshop file (the 8BPS signature is missing)');
   const version = r.readUint16();
-  if (version !== 1 && version !== 2) throw new Error(`Unsupported PSD version ${version}`);
+  if (version !== 1 && version !== 2) throw new Error(t('Unsupported PSD version {version}', { version }));
   const psb = version === 2;
   r.skip(6); // reserved
 
@@ -346,14 +347,14 @@ export async function readPSD(arrayBuffer, opts = {}) {
   const colorMode = r.readUint16();
 
   if (depth !== 8 && depth !== 16) {
-    throw new Error(`Unsupported bit depth: ${depth} bits per channel. Pikado can open 8- and 16-bit files.`);
+    throw new Error(t('Unsupported bit depth: {depth} bits per channel. Pikado can open 8- and 16-bit files.', { depth }));
   }
   if (colorMode !== 3 && colorMode !== 1) {
     const nm = COLOR_MODE_NAMES[colorMode] || `mode ${colorMode}`;
-    throw new Error(`Unsupported colour mode: ${nm}. Pikado can open RGB and Grayscale files.`);
+    throw new Error(t('Unsupported colour mode: {mode}. Pikado can open RGB and Grayscale files.', { mode: nm }));
   }
   if (width < 1 || height < 1) throw new Error('The PSD reports an empty canvas');
-  if (width * height > 120e6) throw new Error(`The image is too large to open (${width}×${height})`);
+  if (width * height > 120e6) throw new Error(t('The image is too large to open ({width}×{height})', { width, height }));
 
   const ctx = {
     buf: arrayBuffer, psb, depth, colorMode, width, height, channelCount,
@@ -442,8 +443,7 @@ export async function readPSD(arrayBuffer, opts = {}) {
       if (choice === 'cancel') throw new Error('Import cancelled');
       if (choice === 'flatten') {
         ctx.warnings.push(
-          `This file's ${parsed.records.length} layers would need about `
-          + `${Math.round(projected / 1048576)} MB, so it was opened flattened.`,
+          t('This file has {layers} layers and would need about {memory} MB, so it was opened flattened.', { layers: parsed.records.length, memory: Math.round(projected / 1048576) }),
         );
         parsed = null;
       }
@@ -493,8 +493,8 @@ export async function readPSD(arrayBuffer, opts = {}) {
 
   if (ctx.skipped.size) {
     const names = [...ctx.skipped].slice(0, 4).join(', ');
-    const more = ctx.skipped.size > 4 ? ` and ${ctx.skipped.size - 4} more` : '';
-    app.toast(`ZIP-compressed channels could not be decoded on: ${names}${more}`, 'warn', 6000);
+    const more = ctx.skipped.size > 4 ? t(' and {count} more', { count: ctx.skipped.size - 4 }) : '';
+    app.toast(t('ZIP-compressed channels could not be decoded on: {names}{more}', { names, more }), 'warn', 6000);
   }
   for (const w of ctx.warnings) app.toast(w, 'warn', 5000);
 
@@ -1130,7 +1130,7 @@ function revive(layer, stored, render, ctx, label) {
   if (isBlankCanvas(out) && stored && !isBlankCanvas(stored)) {
     layer.canvas = stored;
     layer.thumbDirty = true;
-    ctx.warnings.push(`"${label}" could not be re-rendered from its live data — the stored pixels were kept.`);
+    ctx.warnings.push(t('"{name}" could not be re-rendered from its live data — the stored pixels were kept.', { name: label }));
     return;
   }
   layer.canvas = out;
@@ -1747,7 +1747,7 @@ function readDescriptorValue(r) {
       return refs;
     }
     default:
-      throw new Error(`Unsupported descriptor type "${type}"`);
+      throw new Error(t('Unsupported descriptor type "{type}"', { type }));
   }
 }
 
@@ -1762,7 +1762,7 @@ function readReference(r) {
     case 'indx': return { index: r.readUint32() };
     case 'name': { r.readUnicodeString(); r.readKeyId(); return { name: r.readUnicodeString() }; }
     default:
-      throw new Error(`Unsupported reference type "${type}"`);
+      throw new Error(t('Unsupported reference type "{type}"', { type }));
   }
 }
 

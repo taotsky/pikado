@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 /**
  * Filter > Pixelate — Color Halftone, Crystallize, Facet, Fragment,
  * Mezzotint, Mosaic and Pointillize.
@@ -375,16 +376,16 @@ registerFilter({
   menu: 'Pixelate',
   params: [
     { key: 'type', label: 'Type', type: 'select', default: 'medium-dots', options: [
-      { value: 'fine-dots', label: 'Fine dots' },
-      { value: 'medium-dots', label: 'Medium dots' },
-      { value: 'grainy-dots', label: 'Grainy dots' },
-      { value: 'coarse-dots', label: 'Coarse dots' },
-      { value: 'short-lines', label: 'Short lines' },
-      { value: 'medium-lines', label: 'Medium lines' },
-      { value: 'long-lines', label: 'Long lines' },
-      { value: 'short-strokes', label: 'Short strokes' },
-      { value: 'medium-strokes', label: 'Medium strokes' },
-      { value: 'long-strokes', label: 'Long strokes' },
+      { value: 'fine-dots', label: t('Fine dots') },
+      { value: 'medium-dots', label: t('Medium dots') },
+      { value: 'grainy-dots', label: t('Grainy dots') },
+      { value: 'coarse-dots', label: t('Coarse dots') },
+      { value: 'short-lines', label: t('Short lines') },
+      { value: 'medium-lines', label: t('Medium lines') },
+      { value: 'long-lines', label: t('Long lines') },
+      { value: 'short-strokes', label: t('Short strokes') },
+      { value: 'medium-strokes', label: t('Medium strokes') },
+      { value: 'long-strokes', label: t('Long strokes') },
     ] },
   ],
   apply(imageData, p) {

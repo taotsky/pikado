@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 /**
  * Path Selection (black arrow) and Direct Selection (white arrow).
  *
@@ -63,7 +64,7 @@ class PathSelectTool extends Tool {
       options: [
         {
           key: 'show', label: 'Show', type: 'select', default: 'all',
-          options: [{ value: 'all', label: 'All paths' }, { value: 'active', label: 'Active only' }],
+          options: [{ value: 'all', label: t('All paths') }, { value: 'active', label: t('Active only') }],
         },
       ],
     });

@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { Tool, registerTool } from './base.js';
 import { app } from '../core/app.js';
 import { deg2rad, rad2deg } from '../core/util.js';
@@ -246,12 +247,12 @@ class ZoomTool extends Tool {
       options: [
         {
           key: 'dir', type: 'radio', label: '', default: 'in',
-          options: [{ value: 'in', label: 'Zoom In' }, { value: 'out', label: 'Zoom Out' }],
+          options: [{ value: 'in', label: t('Zoom In') }, { value: 'out', label: t('Zoom Out') }],
         },
         {
           key: 'resizeWindows', type: 'checkbox', default: false,
           label: 'Resize Windows to Fit',
-          hint: 'Re-centres the document after zooming when it fits on screen.',
+          hint: t('Re-centres the document after zooming when it fits on screen.'),
         },
         ...VIEW_BUTTONS,
       ],

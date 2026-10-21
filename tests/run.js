@@ -33,6 +33,12 @@ import './suites/ai.test.js';
 import './suites/ai-credentials.test.js';
 import './suites/perf.test.js';
 import './suites/embed.test.js';
+import './suites/i18n.test.js';
+import './suites/i18n-runtime.test.js';
+import './suites/i18n-dialogs.test.js';
+import './suites/i18n-ui.test.js';
+import './suites/i18n-features.test.js';
+import './suites/theme.test.js';
 
 const out = document.getElementById('out');
 const summary = document.getElementById('summary');

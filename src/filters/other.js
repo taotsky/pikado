@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { registerFilter } from './registry.js';
 import { el, clamp } from '../core/util.js';
 import { rgb2hsv, hsv2rgb, rgb2hsl, hsl2rgb } from '../core/color.js';
@@ -300,7 +301,7 @@ function morphFilter(imageData, p, isMax) {
 
 const PRESERVE_PARAM = {
   key: 'preserve', label: 'Preserve', type: 'select', default: 'squareness',
-  options: [{ value: 'squareness', label: 'Squareness' }, { value: 'roundness', label: 'Roundness' }],
+  options: [{ value: 'squareness', label: t('Squareness') }, { value: 'roundness', label: t('Roundness') }],
 };
 
 registerFilter({
@@ -343,9 +344,9 @@ registerFilter({
     {
       key: 'undefinedAreas', label: 'Undefined Areas', type: 'radio', default: 'wrap',
       options: [
-        { value: 'transparent', label: 'Set to Transparent' },
-        { value: 'repeat', label: 'Repeat Edge Pixels' },
-        { value: 'wrap', label: 'Wrap Around' },
+        { value: 'transparent', label: t('Set to Transparent') },
+        { value: 'repeat', label: t('Repeat Edge Pixels') },
+        { value: 'wrap', label: t('Wrap Around') },
       ],
     },
   ],
@@ -390,10 +391,10 @@ registerFilter({
     {
       key: 'mode', label: 'Conversion', type: 'select', default: 'rgb2hsb',
       options: [
-        { value: 'rgb2hsb', label: 'RGB → HSB' },
-        { value: 'rgb2hsl', label: 'RGB → HSL' },
-        { value: 'hsb2rgb', label: 'HSB → RGB' },
-        { value: 'hsl2rgb', label: 'HSL → RGB' },
+        { value: 'rgb2hsb', label: t('RGB → HSB') },
+        { value: 'rgb2hsl', label: t('RGB → HSL') },
+        { value: 'hsb2rgb', label: t('HSB → RGB') },
+        { value: 'hsl2rgb', label: t('HSL → RGB') },
       ],
     },
   ],

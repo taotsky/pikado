@@ -14,7 +14,7 @@ const params = new URLSearchParams(location.search);
 const testCase = params.get('case') || 'smoke';
 const runId = params.get('run') || crypto.randomUUID();
 
-function frame(projectId = runId, userId = runId, expectedCommit = 'development') {
+function frame(projectId = runId, userId = runId, expectedCommit = 'development', themeOptions = {}) {
   const iframe = document.createElement('iframe');
   iframe.width = '1280'; iframe.height = '860';
   iframe.loading = 'eager';
@@ -22,6 +22,7 @@ function frame(projectId = runId, userId = runId, expectedCommit = 'development'
   const sessionId = crypto.randomUUID();
   const pending = new Map();
   const received = [];
+  let initialTheme;
   let resolveReady, rejectReady;
   const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
   const readyTimer = setTimeout(() => rejectReady(new Error('ready timeout')), 20000);
@@ -30,7 +31,11 @@ function frame(projectId = runId, userId = runId, expectedCommit = 'development'
     const m = event.data;
     if (event.origin !== origin || event.source !== iframe.contentWindow || m?.sessionId !== sessionId) return;
     received.push(m.type);
-    if (m.type === 'booted') send('init', { userId, projectId, expectedCommit });
+    if (m.type === 'booted') {
+      initialTheme = iframe.contentDocument.documentElement.dataset.theme;
+      if (themeOptions.latest) send('set-theme', { theme: themeOptions.latest });
+      send('init', { userId, projectId, expectedCommit, theme: themeOptions.init });
+    }
     if (m.type === 'ready') { clearTimeout(readyTimer); resolveReady(m.payload); }
     if (m.type === 'error' && !m.requestId) { clearTimeout(readyTimer); rejectReady(m.payload); }
     if (m.requestId && pending.has(m.requestId)) {
@@ -42,14 +47,16 @@ function frame(projectId = runId, userId = runId, expectedCommit = 'development'
   window.addEventListener('message', listener);
   const url = new URL(`../index.html?embed=1&session=${sessionId}`, location.href).href;
   if (!iframe.isConnected) document.body.appendChild(iframe);
-  iframe.src = url;
+  const themedUrl = new URL(url);
+  if (themeOptions.snapshot) themedUrl.searchParams.set('theme', themeOptions.snapshot);
+  iframe.src = themedUrl.href;
   const call = (type, payload, id = `test-${++sequence}`) => new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`${type} timeout`)), 20000);
     pending.set(id, { resolve: (v) => { clearTimeout(timer); resolve(v); }, reject: (e) => { clearTimeout(timer); reject(e); } });
     send(type, payload, id);
   });
   const remove = () => { clearTimeout(readyTimer); iframe.remove(); window.removeEventListener('message', listener); };
-  const result = { iframe, ready, call, remove, received };
+  const result = { iframe, ready, call, remove, received, notify: send, get initialTheme() { return initialTheme; } };
   frames.push(result);
   return result;
 }
@@ -119,9 +126,50 @@ async function smoke() {
   document.body.appendChild(links);
 }
 
+async function theme() {
+  const current = frame(runId, runId, 'development', { snapshot: 'light', init: 'light', latest: 'dark' });
+  await current.ready;
+  const child = current.iframe.contentWindow;
+  const root = current.iframe.contentDocument.documentElement;
+  assert(current.initialTheme === 'light', 'URL snapshot applies before the editor boots');
+  assert(root.dataset.theme === 'dark', 'latest loading notification overrides stale init theme');
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 8;
+  canvas.getContext('2d').fillStyle = '#ff0000'; canvas.getContext('2d').fillRect(0, 0, 8, 8);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve));
+  await current.call('insert-images', { docId: null, layerId: null, images: [{ blob, name: 'theme artwork' }] });
+  await current.call('flush');
+  const doc = child.pikado.activeDoc;
+  const history = doc.history.states.length;
+  const before = doc.layers[0].canvas.getContext('2d').getImageData(0, 0, 1, 1).data.join(',');
+  const states = current.received.filter(type => type === 'save-state').length;
+  const source = current.iframe.src;
+  for (const value of ['light', 'dark', 'light']) current.notify('set-theme', { theme: value });
+  await current.call('get-targets');
+  assert(root.dataset.theme === 'light', 'consecutive theme notifications apply the latest value');
+  assert(root.style.colorScheme === 'light' && child.document.querySelector('meta[name="theme-color"]').content === '#f3f3f6', 'theme updates native color scheme and browser theme color');
+  assert(!child.document.getElementById('app').inert, 'theme does not leave the editor inert');
+  assert(current.iframe.src === source && child.pikado.activeDoc === doc, 'theme keeps iframe and document instances');
+  assert(doc.history.states.length === history && doc.layers[0].canvas.getContext('2d').getImageData(0, 0, 1, 1).data.join(',') === before, 'theme preserves history and artwork pixels');
+  assert(current.received.filter(type => type === 'save-state').length === states, 'theme notifications do not save the project');
+  for (const [key, value] of [['sessionId', 'wrong-session'], ['version', 2], ['namespace', 'wrong-namespace']]) {
+    child.postMessage({ namespace, version, sessionId: new URL(source).searchParams.get('session'), type: 'set-theme', payload: { theme: 'dark' }, [key]: value }, origin);
+  }
+  const envelope = { namespace, version, sessionId: new URL(source).searchParams.get('session'), type: 'set-theme', payload: { theme: 'dark' } };
+  child.dispatchEvent(new child.MessageEvent('message', { origin: 'https://wrong.invalid', source: window, data: envelope }));
+  child.dispatchEvent(new child.MessageEvent('message', { origin, source: child, data: envelope }));
+  current.notify('set-theme', { theme: 'system' });
+  await current.call('get-targets');
+  assert(root.dataset.theme === 'light', 'invalid origin source session namespace version and theme are ignored');
+  await current.call('dispose');
+  current.notify('set-theme', { theme: 'dark' });
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert(root.dataset.theme === 'light', 'disposed editor ignores theme notifications');
+}
+
 async function run() {
   try {
-    if (testCase === 'smoke') await smoke();
+    if (testCase === 'theme') await theme();
+    else if (testCase === 'smoke') await smoke();
     else {
       if (!params.get('run')) throw new Error('Run smoke first and follow its case links');
       if (!['restore', 'other-project', 'other-user', 'version'].includes(testCase)) throw new Error('Unknown test case');

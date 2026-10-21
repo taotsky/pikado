@@ -10,6 +10,7 @@
  */
 
 import { app } from '../core/app.js';
+import { t } from '../i18n.js';
 import { registerTool } from './base.js';
 import { LayerType } from '../core/layer.js';
 import { snapPoint, clearSnapLines } from '../core/snapping.js';
@@ -519,7 +520,7 @@ class CustomShapeTool extends ShapeToolBase {
       options: [
         modeOption('shape'),
         ...vectorStyleOptions(),
-        { key: 'shape', label: 'Shape', type: 'select', options: CUSTOM_SHAPE_OPTIONS, default: CUSTOM_SHAPES[0].id },
+        { key: 'shape', label: 'Shape', type: 'select', options: CUSTOM_SHAPE_OPTIONS.map((option) => ({ ...option, label: t(option.label) })), default: CUSTOM_SHAPES[0].id },
         { key: 'preserveProportions', label: 'Preserve proportions', type: 'checkbox', default: false },
       ],
     });

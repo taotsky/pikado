@@ -1,3 +1,4 @@
+import { t as translateUI } from '../../i18n.js';
 import { registerPanel } from '../panel-host.js';
 import { app } from '../../core/app.js';
 import { el, uid, createCanvas } from '../../core/util.js';
@@ -241,7 +242,7 @@ function maskForPath(doc, path) {
 
 registerPanel({
   id: 'paths',
-  title: 'Paths',
+  title: translateUI('Paths'),
   icon: 'path',
   group: 'top',
   order: 2,
@@ -266,7 +267,7 @@ registerPanel({
         return null;
       }
       if (l.locked.all || l.locked.pixels) {
-        app.toast(`Layer "${l.name}" is locked.`, 'warn');
+        app.toast(translateUI('Layer "{name}" is locked.', { name: l.name }), 'warn');
         return null;
       }
       return l;
@@ -397,18 +398,18 @@ registerPanel({
       const d = doc();
       list.replaceChildren();
       if (!d) {
-        list.appendChild(el('div.pkp-empty', { text: 'No document open.' }));
+        list.appendChild(el('div.pkp-empty', { text: translateUI('No document open.') }));
         renderFooter();
         return;
       }
 
       if (!d.paths.some((p) => p.isWork)) {
         list.appendChild(el('div.pkp-row.is-ghost', {
-          title: 'Draw with the Pen tool or use "Make work path from selection" to create one',
+          title: translateUI('Draw with the Pen tool or use "Make work path from selection" to create one'),
         },
           el('div.pkp-thumb.pk-checker'),
-          el('span.pkp-name.pk-truncate', { text: 'Work Path' }),
-          el('span.pkp-tag', { text: 'empty' })
+          el('span.pkp-name.pk-truncate', { text: translateUI('Work Path') }),
+          el('span.pkp-tag', { text: translateUI('empty') })
         ));
       }
 
@@ -417,14 +418,14 @@ registerPanel({
         const thumb = el('div.pkp-thumb.pk-checker', {}, pathThumb(d, path));
         const name = el('span.pkp-name.pk-truncate', { text: path.name });
         row.append(thumb, name);
-        if (path.isWork) row.appendChild(el('span.pkp-tag', { text: 'work' }));
+        if (path.isWork) row.appendChild(el('span.pkp-tag', { text: translateUI('work') }));
         row.addEventListener('click', () => {
           d.activePathId = path.id;
           render();
           d.emit('structure');
         });
         row.addEventListener('dblclick', async () => {
-          const next = await promptDialog('Path name', path.name, 'Rename Path');
+          const next = await promptDialog(translateUI('Path name'), path.name, 'Rename Path');
           if (next == null || !next.trim()) return;
           path.name = next.trim();
           if (path.isWork) path.isWork = false;
@@ -442,13 +443,13 @@ registerPanel({
     const renderFooter = () => {
       const d = doc();
       footer.replaceChildren(
-        el('button.pk-icon-btn', { type: 'button', title: 'Fill path with the foreground colour', disabled: !d, onclick: fillPath }, iconEl('bucket')),
-        el('button.pk-icon-btn', { type: 'button', title: 'Stroke path with the current brush', disabled: !d, onclick: strokePath }, iconEl('brush')),
-        el('button.pk-icon-btn', { type: 'button', title: 'Load path as a selection', disabled: !d, onclick: pathToSelection }, iconEl('marquee-rect')),
-        el('button.pk-icon-btn', { type: 'button', title: 'Make a work path from the selection', disabled: !d, onclick: selectionToPath }, iconEl('pen')),
+        el('button.pk-icon-btn', { type: 'button', title: translateUI('Fill path with the foreground colour'), disabled: !d, onclick: fillPath }, iconEl('bucket')),
+        el('button.pk-icon-btn', { type: 'button', title: translateUI('Stroke path with the current brush'), disabled: !d, onclick: strokePath }, iconEl('brush')),
+        el('button.pk-icon-btn', { type: 'button', title: translateUI('Load path as a selection'), disabled: !d, onclick: pathToSelection }, iconEl('marquee-rect')),
+        el('button.pk-icon-btn', { type: 'button', title: translateUI('Make a work path from the selection'), disabled: !d, onclick: selectionToPath }, iconEl('pen')),
         el('div.pk-spacer'),
-        el('button.pk-icon-btn', { type: 'button', title: 'New path', disabled: !d, onclick: newPath }, iconEl('plus')),
-        el('button.pk-icon-btn', { type: 'button', title: 'Delete path', disabled: !d, onclick: deletePath }, iconEl('trash'))
+        el('button.pk-icon-btn', { type: 'button', title: translateUI('New path'), disabled: !d, onclick: newPath }, iconEl('plus')),
+        el('button.pk-icon-btn', { type: 'button', title: translateUI('Delete path'), disabled: !d, onclick: deletePath }, iconEl('trash'))
       );
     };
 

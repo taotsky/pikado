@@ -1,3 +1,5 @@
+import { t } from '../i18n.js';
+
 /**
  * Failure modes of a generation, and what to say about each.
  *
@@ -106,36 +108,36 @@ export function mapThrown(err, provider) {
  * @returns {{text: string, action: string|null}} action is a command id or null
  */
 export function messageFor(err) {
-  const p = (err && err.provider) || 'the provider';
+  const p = (err && err.provider) || t('the provider');
   switch (err && err.code) {
     case GEN_ERRORS.NO_KEY:
-      return { text: `Generative Fill needs your own ${p} API key. Nothing is sent until you add one.`, action: 'key' };
+      return { text: t('Generative Fill needs your own {provider} API key. Nothing is sent until you add one.', { provider: p }), action: 'key' };
     case GEN_ERRORS.NO_CONSENT:
-      return { text: `Generative Fill did not send anything, because sending to ${p} has not been agreed to yet.`, action: 'consent' };
+      return { text: t('Generative Fill did not send anything, because sending to {provider} has not been agreed to yet.', { provider: p }), action: 'consent' };
     case GEN_ERRORS.BAD_KEY:
-      return { text: `${p} rejected the API key. Check that it is current and allowed to generate images.`, action: 'key' };
+      return { text: t('{provider} rejected the API key. Check that it is current and allowed to generate images.', { provider: p }), action: 'key' };
     case GEN_ERRORS.RATE_LIMIT:
       return {
         text: err.retryAfter
-          ? `Rate limited by ${p}. Try again in ${err.retryAfter} seconds.`
-          : `Rate limited by ${p}. Try again in a moment.`,
+          ? t('Rate limited by {provider}. Try again in {seconds} seconds.', { provider: p, seconds: err.retryAfter })
+          : t('Rate limited by {provider}. Try again in a moment.', { provider: p }),
         action: null,
       };
     case GEN_ERRORS.QUOTA:
-      return { text: `Your ${p} account is out of credit. This attempt was not charged.`, action: null };
+      return { text: t('Your {provider} account is out of credit. This attempt was not charged.', { provider: p }), action: null };
     case GEN_ERRORS.REFUSED:
-      return { text: `${p} declined this prompt. Describing the result rather than the subject often helps.`, action: null };
+      return { text: t('{provider} declined this prompt. Describing the result rather than the subject often helps.', { provider: p }), action: null };
     case GEN_ERRORS.OFFLINE:
-      return { text: 'No connection. Generative Fill is the one thing in Pikado that needs one — everything else still works.', action: null };
+      return { text: t('No connection. Generative Fill is the one thing in Pikado that needs one — everything else still works.'), action: null };
     case GEN_ERRORS.ABORTED:
-      return { text: `Stopped. ${p} may still charge for a generation that had already started.`, action: null };
+      return { text: t('Stopped. {provider} may still charge for a generation that had already started.', { provider: p }), action: null };
     case GEN_ERRORS.TIMEOUT:
-      return { text: `No answer from ${p} after two minutes. It may be overloaded — try again.`, action: null };
+      return { text: t('No answer from {provider} after two minutes. It may be overloaded — try again.', { provider: p }), action: null };
     case GEN_ERRORS.BAD_RESPONSE:
-      return { text: `${p} returned something Pikado could not read. Nothing was changed.`, action: null };
+      return { text: t('{provider} returned something Pikado could not read. Nothing was changed.', { provider: p }), action: null };
     case GEN_ERRORS.SERVER:
-      return { text: `${p} is having trouble${err.status ? ` (${err.status})` : ''}. Nothing was charged for a failed request.`, action: null };
+      return { text: t('{provider} is having trouble{status}. Nothing was charged for a failed request.', { provider: p, status: err.status ? ` (${err.status})` : '' }), action: null };
     default:
-      return { text: `Generative Fill failed and ${p} did not say why. Nothing was changed.`, action: null };
+      return { text: t('Generative Fill failed and {provider} did not say why. Nothing was changed.', { provider: p }), action: null };
   }
 }

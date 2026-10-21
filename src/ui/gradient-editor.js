@@ -1,3 +1,4 @@
+import { t as translateUI } from '../i18n.js';
 import './gradient-editor.css';
 import { el, clamp } from '../core/util.js';
 import { parseColor, toHex } from '../core/color.js';
@@ -248,7 +249,7 @@ export function gradientPresetPicker(onPick, opts = {}) {
   const row = el('div.pk-grad-presets');
   for (const p of list) {
     const sw = el('button.pk-grad-preset', {
-      type: 'button', title: p.name,
+      type: 'button', title: opts.presets ? p.name : translateUI(p.name),
       style: { backgroundImage: gradientToCss(p.gradient) },
       onclick: () => onPick(cloneGradient(p.gradient), p.name),
     });
@@ -323,16 +324,16 @@ function buildGradientEditor(container, cfg) {
   const opacityRow = el('div.pk-grad-row.opacity');
   const track = el('div.pk-grad-track', {}, opacityRow, bar, colorRow);
 
-  const swatch = el('button.pk-color-swatch.pk-grad-swatch', { type: 'button', title: 'Stop colour' });
+  const swatch = el('button.pk-color-swatch.pk-grad-swatch', { type: 'button', title: translateUI('Stop colour') });
   const colorInput = el('input', { type: 'color', style: { display: 'none' } });
-  const opacityNum = el('input.pk-num', { type: 'number', min: 0, max: 100, step: 1, value: 100, title: 'Opacity %' });
-  const locNum = el('input.pk-num', { type: 'number', min: 0, max: 100, step: 1, value: 0, title: 'Location %' });
-  const delBtn = el('button.pk-btn.subtle', { type: 'button', text: 'Delete' });
+  const opacityNum = el('input.pk-num', { type: 'number', min: 0, max: 100, step: 1, value: 100, title: translateUI('Opacity %') });
+  const locNum = el('input.pk-num', { type: 'number', min: 0, max: 100, step: 1, value: 0, title: translateUI('Location %') });
+  const delBtn = el('button.pk-btn.subtle', { type: 'button', text: translateUI('Delete') });
 
   const editRow = el('div.pk-grad-edit', {},
-    el('span.pk-grad-group.only-color', {}, el('span.pk-grad-lbl', { text: 'Color' }), swatch, colorInput),
-    el('span.pk-grad-group.only-opacity', {}, el('span.pk-grad-lbl', { text: 'Opacity' }), opacityNum, el('span.pk-unit', { text: '%' })),
-    el('span.pk-grad-group', {}, el('span.pk-grad-lbl', { text: 'Location' }), locNum, el('span.pk-unit', { text: '%' })),
+    el('span.pk-grad-group.only-color', {}, el('span.pk-grad-lbl', { text: translateUI('Color') }), swatch, colorInput),
+    el('span.pk-grad-group.only-opacity', {}, el('span.pk-grad-lbl', { text: translateUI('Opacity') }), opacityNum, el('span.pk-unit', { text: '%' })),
+    el('span.pk-grad-group', {}, el('span.pk-grad-lbl', { text: translateUI('Location') }), locNum, el('span.pk-unit', { text: '%' })),
     el('div.pk-spacer'), delBtn
   );
 

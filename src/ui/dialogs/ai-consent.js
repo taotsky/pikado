@@ -1,3 +1,4 @@
+import { t } from '../../i18n.js';
 import './dialogs.css';
 import { el } from '../../core/util.js';
 import { Dialog } from '../dialog.js';
@@ -22,33 +23,32 @@ export async function showAiConsentDialog(provider) {
   const host = hostOf(provider.endpoint);
   if (!host || hasConsent(host)) return true;
 
-  const dialog = new Dialog({ title: `Send this image to ${provider.name}?`, width: 500 });
+  const dialog = new Dialog({ title: t('Send this image to {provider}?', { provider: provider.name }), width: 500 });
   const dontAsk = el('input', { type: 'checkbox' });
 
   dialog.setBody(
-    el('div.pk-hint', { text: 'Pikado has never sent your work anywhere. This feature does.' }),
+    el('div.pk-hint', { text: t('Pikado has never sent your work anywhere. This feature does.') }),
     el('div.pk-field', {},
-      el('label', { text: `Leaving this computer, to ${host}` }),
+      el('label', { text: t('Leaving this computer, to {host}', { host }) }),
       el('ul.pk-list', {},
-        el('li', { text: 'the selected part of your image, and some of what surrounds it, as a PNG' }),
-        el('li', { text: 'the prompt you type' }),
-        el('li', { text: 'your API key, in a request header' }))),
+        el('li', { text: t('the selected part of your image, and some of what surrounds it, as a PNG') }),
+        el('li', { text: t('the prompt you type') }),
+        el('li', { text: t('your API key, in a request header') }))),
     el('div.pk-field', {},
-      el('label', { text: 'Not leaving' }),
+      el('label', { text: t('Not leaving') }),
       el('ul.pk-list', {},
-        el('li', { text: 'your other open documents, your layer names and your file names' }),
-        el('li', { text: 'your edit history, and anything else stored in this browser' }))),
+        el('li', { text: t('your other open documents, your layer names and your file names') }),
+        el('li', { text: t('your edit history, and anything else stored in this browser') }))),
     el('div.pk-hint', {
-      text: `What ${provider.name} stores, and for how long, is governed by their terms and not `
-        + 'by Pikado. Read them before sending anything you would not post publicly.',
+      text: t('What {provider} stores, and for how long, is governed by their terms and not by Pikado. Read them before sending anything you would not post publicly.', { provider: provider.name }),
     }),
-    el('label.pk-check', {}, dontAsk, el('span', { text: `Don't ask again for ${host}` })),
+    el('label.pk-check', {}, dontAsk, el('span', { text: t("Don't ask again for {host}", { host }) })),
   );
 
   dialog.setButtons([
-    { label: 'Cancel', value: false, subtle: true },
+    { label: t('Cancel'), value: false, subtle: true },
     {
-      label: 'Send',
+      label: t('Send'),
       primary: true,
       onClick: (dlg) => {
         grantConsent(host, { remember: dontAsk.checked });

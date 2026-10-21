@@ -1,3 +1,4 @@
+import { t, historyLabel } from '../i18n.js';
 import '../ui/dialogs/dialogs.css';
 import { app } from '../core/app.js';
 import { createCanvas, cloneCanvas, el, clamp, clamp255, deg2rad, uid } from '../core/util.js';
@@ -96,7 +97,7 @@ const BAYER8 = [
 /** Image > Mode > Bitmap — flattens to a single 1-bit layer. */
 export async function convertToBitmap(doc) {
   const opts = await paramDialog({
-    title: 'Bitmap',
+    title: t('Bitmap'),
     width: 380,
     preview: false,
     state: { method: 'threshold', threshold: 128 },
@@ -104,9 +105,9 @@ export async function convertToBitmap(doc) {
       {
         key: 'method', label: 'Method', type: 'select',
         options: [
-          { value: 'threshold', label: '50% Threshold' },
-          { value: 'pattern', label: 'Pattern Dither' },
-          { value: 'diffusion', label: 'Diffusion Dither' },
+          { value: 'threshold', label: t('50% Threshold') },
+          { value: 'pattern', label: t('Pattern Dither') },
+          { value: 'diffusion', label: t('Diffusion Dither') },
         ],
       },
       { key: 'threshold', label: 'Threshold', type: 'slider', min: 1, max: 254, step: 1, when: (s) => s.method === 'threshold' },
@@ -452,7 +453,7 @@ export async function showFadeDialog(doc) {
   const build = (s) => blendCanvases(before, after, s.blendMode, s.opacity / 100);
 
   const result = await paramDialog({
-    title: `Fade ${label}`,
+    title: t('Fade {name}', { name: historyLabel(label) }),
     width: 380,
     state: { opacity: 100, blendMode: 'normal' },
     params: [
@@ -479,17 +480,17 @@ export async function showFadeDialog(doc) {
 /* ------------------------------------------------------------------ */
 
 const CHANNELS = [
-  { value: 'rgb', label: 'RGB' },
-  { value: 'red', label: 'Red' },
-  { value: 'green', label: 'Green' },
-  { value: 'blue', label: 'Blue' },
-  { value: 'gray', label: 'Gray' },
-  { value: 'alpha', label: 'Transparency' },
+  { value: 'rgb', label: t('RGB') },
+  { value: 'red', label: t('Red') },
+  { value: 'green', label: t('Green') },
+  { value: 'blue', label: t('Blue') },
+  { value: 'gray', label: t('Gray') },
+  { value: 'alpha', label: t('Transparency') },
 ];
 
 function layerOptions(doc, extra = []) {
   return [
-    { value: '__merged__', label: 'Merged' },
+    { value: '__merged__', label: t('Merged') },
     ...extra,
     ...doc.flatLayers().filter((l) => l.canvas || l.type === LayerType.GROUP).map((l) => ({ value: l.id, label: l.name })),
   ];
@@ -550,7 +551,7 @@ export async function showApplyImageDialog(doc) {
   };
 
   const result = await paramDialog({
-    title: 'Apply Image',
+    title: t('Apply Image'),
     width: 420,
     state: {
       source: '__merged__', channel: 'rgb', invert: false,
@@ -606,7 +607,7 @@ export async function showCalculationsDialog(doc) {
   };
 
   const result = await paramDialog({
-    title: 'Calculations',
+    title: t('Calculations'),
     width: 430,
     preview: false,
     state: {
@@ -630,9 +631,9 @@ export async function showCalculationsDialog(doc) {
       {
         key: 'output', label: 'Result', type: 'select',
         options: [
-          { value: 'channel', label: 'New Channel' },
-          { value: 'selection', label: 'Selection' },
-          { value: 'document', label: 'New Document' },
+          { value: 'channel', label: t('New Channel') },
+          { value: 'selection', label: t('Selection') },
+          { value: 'document', label: t('New Document') },
         ],
       },
     ],
@@ -674,16 +675,16 @@ export async function showCalculationsDialog(doc) {
 /* ------------------------------------------------------------------ */
 
 const RANGE_KINDS = [
-  { value: 'sampled', label: 'Sampled Colors' },
-  { value: 'reds', label: 'Reds' },
-  { value: 'yellows', label: 'Yellows' },
-  { value: 'greens', label: 'Greens' },
-  { value: 'cyans', label: 'Cyans' },
-  { value: 'blues', label: 'Blues' },
-  { value: 'magentas', label: 'Magentas' },
-  { value: 'highlights', label: 'Highlights' },
-  { value: 'midtones', label: 'Midtones' },
-  { value: 'shadows', label: 'Shadows' },
+  { value: 'sampled', label: t('Sampled Colors') },
+  { value: 'reds', label: t('Reds') },
+  { value: 'yellows', label: t('Yellows') },
+  { value: 'greens', label: t('Greens') },
+  { value: 'cyans', label: t('Cyans') },
+  { value: 'blues', label: t('Blues') },
+  { value: 'magentas', label: t('Magentas') },
+  { value: 'highlights', label: t('Highlights') },
+  { value: 'midtones', label: t('Midtones') },
+  { value: 'shadows', label: t('Shadows') },
 ];
 
 const HUE_CENTRES = { reds: 0, yellows: 60, greens: 120, cyans: 180, blues: 240, magentas: 300 };
@@ -769,7 +770,7 @@ export async function showColorRangeDialog(doc) {
     samples: [{ r: 128, g: 128, b: 128, x: null, y: null }],
   };
 
-  const dlg = new Dialog({ title: 'Color Range', width: 520, className: 'pkd-colorrange' });
+  const dlg = new Dialog({ title: t('Color Range'), width: 520, className: 'pkd-colorrange' });
 
   const kindSelect = el('select.pk-select', {}, ...RANGE_KINDS.map((k) => el('option', { value: k.value, text: k.label })));
   const fuzzRange = el('input.pk-range', { type: 'range', min: 0, max: 200, step: 1, value: state.fuzziness });
@@ -777,16 +778,16 @@ export async function showColorRangeDialog(doc) {
   const localizedInput = el('input', { type: 'checkbox' });
   const rangeRow = el('div.pk-field');
   const rangeInput = el('input.pk-range', { type: 'range', min: 1, max: 100, step: 1, value: state.range });
-  rangeRow.append(el('label', { text: 'Range' }), rangeInput);
+  rangeRow.append(el('label', { text: t('Range') }), rangeInput);
   const invertInput = el('input', { type: 'checkbox' });
   const showSelect = el('select.pk-select', {},
-    el('option', { value: 'selection', text: 'Selection' }),
-    el('option', { value: 'image', text: 'Image' }));
+    el('option', { value: 'selection', text: t('Selection') }),
+    el('option', { value: 'image', text: t('Image') }));
   const swatchRow = el('div.pkd-row');
   const previewBox = el('div.pkd-preview', { style: { height: `${Math.min(260, ph)}px`, cursor: 'crosshair' } });
   const previewCanvas = el('canvas', { width: pw, height: ph });
   previewBox.appendChild(previewCanvas);
-  const hint = el('div.pkd-note', { text: 'Click the preview to sample a colour. Shift-click adds, Alt-click removes.' });
+  const hint = el('div.pkd-note', { text: t('Click the preview to sample a colour. Shift-click adds, Alt-click removes.') });
 
   let maskCache = null;
 
@@ -816,7 +817,7 @@ export async function showColorRangeDialog(doc) {
       ...state.samples.map((s, i) =>
         el('button.pk-color-swatch', {
           type: 'button',
-          title: `Remove sample ${i + 1}`,
+          title: t('Remove sample {count}', { count: i + 1 }),
           style: { background: `rgb(${s.r},${s.g},${s.b})` },
           onclick: () => {
             if (state.samples.length > 1) {
@@ -826,7 +827,7 @@ export async function showColorRangeDialog(doc) {
           },
         })
       ),
-      el('span.pk-hint', { text: `${state.samples.length} sample${state.samples.length === 1 ? '' : 's'}` })
+      el('span.pk-hint', { text: t('{count} samples', { count: state.samples.length }) })
     );
 
     maskCache = colorRangeMask(proxyImg, { ...currentOpts(), samples: scaledSamples(scale) });
@@ -889,12 +890,12 @@ export async function showColorRangeDialog(doc) {
   dlg.setBody(
     el('div.pkd-cols', {},
       el('div.pkd-col.grow', {},
-        el('div.pk-field', {}, el('label', { text: 'Select' }), kindSelect),
-        el('div.pk-field', {}, el('label', { text: 'Fuzziness' }), el('div.pk-slider-row', {}, fuzzRange, fuzzNum)),
-        el('label.pk-check', {}, localizedInput, el('span', { text: 'Localized Color Clusters' })),
+        el('div.pk-field', {}, el('label', { text: t('Select') }), kindSelect),
+        el('div.pk-field', {}, el('label', { text: t('Fuzziness') }), el('div.pk-slider-row', {}, fuzzRange, fuzzNum)),
+        el('label.pk-check', {}, localizedInput, el('span', { text: t('Localized Color Clusters') })),
         rangeRow,
-        el('label.pk-check', {}, invertInput, el('span', { text: 'Invert' })),
-        el('div.pk-field', {}, el('label', { text: 'Selection Preview' }), showSelect),
+        el('label.pk-check', {}, invertInput, el('span', { text: t('Invert') })),
+        el('div.pk-field', {}, el('label', { text: t('Selection Preview') }), showSelect),
         swatchRow,
         hint
       ),
@@ -903,7 +904,7 @@ export async function showColorRangeDialog(doc) {
   );
 
   dlg.setButtons([
-    { label: 'Cancel', value: null, subtle: true },
+    { label: t('Cancel'), value: null, subtle: true },
     { label: 'OK', primary: true, onClick: (d) => { d.close({ ...currentOpts(), samples: [...state.samples] }); return false; } },
   ]);
 
@@ -985,7 +986,7 @@ export function printDocument(doc) {
 /** Image > Trim… — asks which edges/colour to trim, then crops. */
 export async function showTrimDialog(doc, trimFn) {
   const result = await paramDialog({
-    title: 'Trim',
+    title: t('Trim'),
     width: 340,
     preview: false,
     state: { mode: 'transparent' },
@@ -993,9 +994,9 @@ export async function showTrimDialog(doc, trimFn) {
       {
         key: 'mode', label: 'Based On', type: 'radio',
         options: [
-          { value: 'transparent', label: 'Transparent Pixels' },
-          { value: 'top-left', label: 'Top Left Pixel Color' },
-          { value: 'bottom-right', label: 'Bottom Right Pixel Color' },
+          { value: 'transparent', label: t('Transparent Pixels') },
+          { value: 'top-left', label: t('Top Left Pixel Color') },
+          { value: 'bottom-right', label: t('Bottom Right Pixel Color') },
         ],
       },
     ],
@@ -1007,7 +1008,7 @@ export async function showTrimDialog(doc, trimFn) {
 /** Image > Image Rotation > Arbitrary… */
 export async function showArbitraryRotationDialog(doc) {
   const result = await paramDialog({
-    title: 'Rotate Canvas',
+    title: t('Rotate Canvas'),
     width: 340,
     preview: false,
     state: { angle: 15, direction: 'cw' },
@@ -1015,7 +1016,7 @@ export async function showArbitraryRotationDialog(doc) {
       { key: 'angle', label: 'Angle', type: 'slider', min: 0, max: 359.9, step: 0.1, unit: '°' },
       {
         key: 'direction', label: 'Direction', type: 'radio',
-        options: [{ value: 'cw', label: '°CW' }, { value: 'ccw', label: '°CCW' }],
+        options: [{ value: 'cw', label: t('°CW') }, { value: 'ccw', label: t('°CCW') }],
       },
     ],
   });

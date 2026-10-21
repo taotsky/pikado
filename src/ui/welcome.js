@@ -1,4 +1,5 @@
 import { el } from '../core/util.js';
+import { t as translate } from '../i18n.js';
 import { app } from '../core/app.js';
 import { brandMark, BRAND } from './brand.js';
 import { icon } from './icons.js';
@@ -88,25 +89,25 @@ function calendarDaysAgo(then, now) {
 function relativeTime(ms) {
   const now = Date.now();
   const diff = Math.max(0, now - ms);
-  if (diff < 45000) return 'just now';
+  if (diff < 45000) return translate('just now');
   const min = Math.round(diff / 60000);
-  if (min < 2) return 'a minute ago';
-  if (min < 60) return `${min} minutes ago`;
+  if (min < 2) return translate('a minute ago');
+  if (min < 60) return translate('{count} minutes ago', { count: min });
   const hr = Math.round(diff / 3600000);
-  if (diff < 6 * 3600000) return hr < 2 ? 'an hour ago' : `${hr} hours ago`;
+  if (diff < 6 * 3600000) return hr < 2 ? translate('an hour ago') : translate('{count} hours ago', { count: hr });
   const days = calendarDaysAgo(ms, now);
-  if (days <= 0) return `${hr} hours ago`;
-  if (days === 1) return 'yesterday';
-  if (days < 7) return `${days} days ago`;
+  if (days <= 0) return translate('{count} hours ago', { count: hr });
+  if (days === 1) return translate('yesterday');
+  if (days < 7) return translate('{count} days ago', { count: days });
   const d = new Date(ms);
   const sameYear = d.getFullYear() === new Date(now).getFullYear();
-  return d.toLocaleDateString(undefined, sameYear
+  return d.toLocaleDateString('zh-CN', sameYear
     ? { day: 'numeric', month: 'short' }
     : { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function plural(n, word) {
-  return `${n} ${word}${n === 1 ? '' : 's'}`;
+  return translate(word === 'layer' ? '{count} layers' : '{count} projects', { count: n });
 }
 
 /* ------------------------------------------------------------------ */
@@ -125,23 +126,23 @@ function header() {
       el('span.pk-wc-mark', { html: brandMark({ size: 56, title: BRAND.name }) }),
       el('div', {},
         el('div.pk-wc-word', { text: BRAND.name }),
-        el('div.pk-wc-tag', { text: BRAND.tagline })
+        el('div.pk-wc-tag', { text: translate(BRAND.tagline) })
       )
     ),
     el('p.pk-wc-lede', {
-      text: 'A layered image editor that runs entirely on your machine. '
-        + 'Start a blank canvas, open a photo, or pick up where you left off.',
+      text: translate('A layered image editor that runs entirely on your machine. '
+        + 'Start a blank canvas, open a photo, or pick up where you left off.'),
     }),
     el('div.pk-wc-actions', {},
-      el('button.pk-btn.primary', { type: 'button', text: 'New document', onclick: newDoc }),
-      el('button.pk-btn', { type: 'button', text: 'Open file…', onclick: openFile }),
-      el('span.pk-wc-drop', { text: 'or drop a file — or an image from another tab — anywhere on this window' })
+      el('button.pk-btn.primary', { type: 'button', text: translate('New document'), onclick: newDoc }),
+      el('button.pk-btn', { type: 'button', text: translate('Open file…'), onclick: openFile }),
+      el('span.pk-wc-drop', { text: translate('or drop a file — or an image from another tab — anywhere on this window') })
     )
   );
 }
 
 function sectionLabel(text) {
-  return el('div.pk-wc-sec-head', {}, el('span.pk-micro', { text }));
+  return el('div.pk-wc-sec-head', {}, el('span.pk-micro', { text: translate(text) }));
 }
 
 function templateCard(t) {
@@ -151,12 +152,12 @@ function templateCard(t) {
 
   return el('button.pk-wc-tpl', {
     type: 'button',
-    title: `New ${t.width} × ${t.height} document`,
+    title: translate('New {width} × {height} document', { width: t.width, height: t.height }),
     onclick: () => app.newDocument({ width: t.width, height: t.height, name: t.name, fill: '#ffffff' }),
   },
   el('span.pk-wc-tpl-stage', {},
     el('span.pk-wc-tpl-rect', { style: { width: `${w}px`, height: `${h}px` } })),
-  el('span.pk-wc-tpl-name', { text: t.name }),
+  el('span.pk-wc-tpl-name', { text: translate(t.name) }),
   el('span.pk-wc-tpl-dim.pk-tabular', { text: `${t.width} × ${t.height}` }));
 }
 
@@ -182,7 +183,7 @@ function recentCard(rec) {
   const stamp = new Date(rec.updatedAt);
   const open = el('button.pk-wc-open', {
     type: 'button',
-    title: `${rec.name} — last saved ${stamp.toLocaleString()}`,
+    title: translate('{name} — last saved {date}', { name: rec.name, date: stamp.toLocaleString('zh-CN') }),
     onclick: () => { openRecent(rec.id); },
   },
   el('span.pk-wc-thumb', {}, thumbnail(rec)),
@@ -193,12 +194,12 @@ function recentCard(rec) {
 
   const forget = el('button.pk-wc-forget', {
     type: 'button',
-    title: 'Remove from this browser',
-    'aria-label': `Remove ${rec.name} from this browser`,
+    title: translate('Remove from this browser'),
+    'aria-label': translate('Remove {name} from this browser', { name: rec.name }),
     html: icon('close', { size: 12 }),
     onclick: async () => {
       const ok = await confirmDialog(
-        `Remove "${rec.name}" from this browser? The stored copy is deleted and cannot be recovered.`,
+        translate('Remove "{name}" from this browser? The stored copy is deleted and cannot be recovered.', { name: rec.name }),
         'Remove project', 'Remove', { danger: true });
       if (ok) await forgetRecent(rec.id);
     },
@@ -222,7 +223,7 @@ function paintRecents(list) {
   if (!list.length) {
     recentsHost.className = 'pk-wc-empty';
     recentsHost.appendChild(el('p.pk-wc-none', {
-      text: 'No projects yet — anything you make is kept here automatically as you work.',
+      text: translate('No projects yet — anything you make is kept here automatically as you work.'),
     }));
     return;
   }
@@ -232,12 +233,12 @@ function paintRecents(list) {
 
 function paintStorage(u) {
   const line = u.count
-    ? `${plural(u.count, 'project')} · ${formatSize(u.bytes)} kept in this browser`
-    : 'Your work is kept in this browser as you go';
+    ? translate('{projects} · {size} kept in this browser', { projects: plural(u.count, 'project'), size: formatSize(u.bytes) })
+    : translate('Your work is kept in this browser as you go');
   storageEl.textContent = line;
   storageEl.title = u.quota && u.quota.quota
-    ? `This site is using ${formatSize(u.quota.used)} of about ${formatSize(u.quota.quota)} available. Nothing leaves your machine.`
-    : 'Projects are stored locally. Nothing leaves your machine.';
+    ? translate('This site is using {used} of about {quota} available. Nothing leaves your machine.', { used: formatSize(u.quota.used), quota: formatSize(u.quota.quota) })
+    : translate('Projects are stored locally. Nothing leaves your machine.');
 }
 
 /**
@@ -278,7 +279,7 @@ function keyHint(keys, label) {
     if (i && !IS_MAC) parts.push('+');
     parts.push(el('kbd', { text: k }));
   });
-  return el('span.pk-wc-key', {}, ...parts, el('span', { text: label }));
+  return el('span.pk-wc-key', {}, ...parts, el('span', { text: translate(label) }));
 }
 
 function footer() {

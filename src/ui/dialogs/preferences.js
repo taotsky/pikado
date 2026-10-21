@@ -1,9 +1,11 @@
+import { t } from '../../i18n.js';
 import './dialogs.css';
 import { app } from '../../core/app.js';
 import { el, clamp255 } from '../../core/util.js';
 import { parseColor, toHex } from '../../core/color.js';
 import { Dialog, buildForm } from '../dialog.js';
 import { BRAND } from '../brand.js';
+import { applyTheme } from '../../theme.js';
 
 /**
  * Preferences. Values persist in `localStorage["pikado.prefs"]` and are pushed
@@ -19,12 +21,8 @@ export const PREF_DEFAULTS = {
   recentLimit: 10,
   confirmBeforeClosing: true,
   resetColorsOnLaunch: false,
-  /* Interface.
-     These are written straight onto the root as --accent / --bg-canvas /
-     --panel-w / --toolbar-w / --row-h / --radius by applyStoredPreferences(),
-     so they must start out equal to the design-system tokens in
-     src/styles.css — otherwise the stored defaults silently override the
-     palette on every launch. */
+  /* Default colours inherit the current theme. Only different, custom colours
+     are written onto the root by applyStoredPreferences(). */
   accent: BRAND.violet,
   canvasBg: '#121212', // --void: strictly neutral, so it never biases the image
   panelWidth: 304,
@@ -71,94 +69,94 @@ export const PREF_DEFAULTS = {
 const CATEGORIES = [
   {
     id: 'general',
-    label: 'General',
+    label: t('General'),
     params: [
       {
-        key: 'units', label: 'Default Units', type: 'select',
+        key: 'units', label: t('Default Units'), type: 'select',
         options: [
-          { value: 'px', label: 'Pixels' }, { value: 'in', label: 'Inches' },
-          { value: 'cm', label: 'Centimeters' }, { value: 'mm', label: 'Millimeters' },
-          { value: 'pt', label: 'Points' }, { value: 'pica', label: 'Picas' },
+          { value: 'px', label: t('Pixels') }, { value: 'in', label: t('Inches') },
+          { value: 'cm', label: t('Centimeters') }, { value: 'mm', label: t('Millimeters') },
+          { value: 'pt', label: t('Points') }, { value: 'pica', label: t('Picas') },
         ],
-        hint: 'Used by the rulers, the Info panel and the size dialogs.',
+        hint: t('Used by the rulers, the Info panel and the size dialogs.'),
       },
-      { key: 'recentLimit', label: 'Recent Documents', type: 'slider', min: 0, max: 20, step: 1 },
-      { key: 'confirmBeforeClosing', label: 'Ask before closing a document with unsaved changes', type: 'checkbox' },
-      { key: 'resetColorsOnLaunch', label: 'Reset foreground / background colours on launch', type: 'checkbox' },
+      { key: 'recentLimit', label: t('Recent Documents'), type: 'slider', min: 0, max: 20, step: 1 },
+      { key: 'confirmBeforeClosing', label: t('Ask before closing a document with unsaved changes'), type: 'checkbox' },
+      { key: 'resetColorsOnLaunch', label: t('Reset foreground / background colours on launch'), type: 'checkbox' },
       {
-        key: 'webfonts', label: 'Web Fonts', type: 'select',
+        key: 'webfonts', label: t('Web Fonts'), type: 'select',
         options: [
-          { value: 'auto', label: 'Download when needed' },
-          { value: 'off', label: 'Never download' },
+          { value: 'auto', label: t('Download when needed') },
+          { value: 'off', label: t('Never download') },
         ],
-        hint: 'Fonts come from Google Fonts. Nothing of yours is sent — this is a '
+        hint: t('Fonts come from Google Fonts. Nothing of yours is sent — this is a '
           + 'download — and a family is kept once fetched, so it works offline afterwards. '
-          + 'Turning it off leaves the built-in Google families showing a substitute face.',
+          + 'Turning it off leaves the built-in Google families showing a substitute face.'),
       },
     ],
   },
   {
     id: 'interface',
-    label: 'Interface',
+    label: t('Interface'),
     params: [
-      { key: 'accent', label: 'Accent Colour', type: 'color' },
-      { key: 'canvasBg', label: 'Canvas Surround', type: 'color' },
-      { key: 'panelWidth', label: 'Panel Dock Width', type: 'slider', min: 240, max: 460, step: 10, unit: 'px' },
-      { key: 'toolbarWidth', label: 'Toolbar Width', type: 'slider', min: 40, max: 76, step: 2, unit: 'px' },
-      { key: 'rowHeight', label: 'Control Height', type: 'slider', min: 20, max: 34, step: 1, unit: 'px' },
-      { key: 'cornerRadius', label: 'Corner Radius', type: 'slider', min: 0, max: 10, step: 1, unit: 'px' },
+      { key: 'accent', label: t('Accent Colour'), type: 'color' },
+      { key: 'canvasBg', label: t('Canvas Surround'), type: 'color' },
+      { key: 'panelWidth', label: t('Panel Dock Width'), type: 'slider', min: 240, max: 460, step: 10, unit: 'px' },
+      { key: 'toolbarWidth', label: t('Toolbar Width'), type: 'slider', min: 40, max: 76, step: 2, unit: 'px' },
+      { key: 'rowHeight', label: t('Control Height'), type: 'slider', min: 20, max: 34, step: 1, unit: 'px' },
+      { key: 'cornerRadius', label: t('Corner Radius'), type: 'slider', min: 0, max: 10, step: 1, unit: 'px' },
     ],
   },
   {
     id: 'tools',
-    label: 'Tools',
+    label: t('Tools'),
     params: [
       {
-        key: 'brushCursor', label: 'Painting Cursor', type: 'radio',
+        key: 'brushCursor', label: t('Painting Cursor'), type: 'radio',
         options: [
-          { value: 'normal', label: 'Normal Brush Tip' },
-          { value: 'full', label: 'Full Size Brush Tip' },
-          { value: 'precise', label: 'Precise' },
+          { value: 'normal', label: t('Normal Brush Tip') },
+          { value: 'full', label: t('Full Size Brush Tip') },
+          { value: 'precise', label: t('Precise') },
         ],
       },
-      { key: 'showToolTips', label: 'Show tool tips', type: 'checkbox' },
-      { key: 'scrollZoom', label: 'Zoom with scroll wheel', type: 'checkbox' },
-      { key: 'showTransformValues', label: 'Show transform values while dragging', type: 'checkbox' },
+      { key: 'showToolTips', label: t('Show tool tips'), type: 'checkbox' },
+      { key: 'scrollZoom', label: t('Zoom with scroll wheel'), type: 'checkbox' },
+      { key: 'showTransformValues', label: t('Show transform values while dragging'), type: 'checkbox' },
     ],
   },
   {
     id: 'history',
-    label: 'History',
+    label: t('History'),
     params: [
-      { key: 'historyStates', label: 'History States', type: 'slider', min: 5, max: 200, step: 1 },
+      { key: 'historyStates', label: t('History States'), type: 'slider', min: 5, max: 200, step: 1 },
       {
-        key: 'autoPurgeHistory', label: 'Purge the oldest states when memory runs high', type: 'checkbox',
-        hint: 'Uses the memory limit set under Performance.',
+        key: 'autoPurgeHistory', label: t('Purge the oldest states when memory runs high'), type: 'checkbox',
+        hint: t('Uses the memory limit set under Performance.'),
       },
     ],
   },
   {
     id: 'performance',
-    label: 'Performance',
+    label: t('Performance'),
     params: [
-      { key: 'memoryLimitMB', label: 'Memory Budget', type: 'slider', min: 64, max: 4096, step: 64, unit: 'MB' },
-      { key: 'maxDocPixels', label: 'Warn above', type: 'slider', min: 10, max: 500, step: 10, unit: 'MP' },
+      { key: 'memoryLimitMB', label: t('Memory Budget'), type: 'slider', min: 64, max: 4096, step: 64, unit: 'MB' },
+      { key: 'maxDocPixels', label: t('Warn above'), type: 'slider', min: 10, max: 500, step: 10, unit: 'MP' },
       {
-        key: 'previewQuality', label: 'Dialog Preview Quality', type: 'select',
-        options: [{ value: 'accurate', label: 'Accurate' }, { value: 'fast', label: 'Fast (downsampled)' }],
+        key: 'previewQuality', label: t('Dialog Preview Quality'), type: 'select',
+        options: [{ value: 'accurate', label: t('Accurate') }, { value: 'fast', label: t('Fast (downsampled)') }],
       },
     ],
   },
   {
     id: 'guides',
-    label: 'Guides & Grid',
+    label: t('Guides & Grid'),
     params: [
-      { key: 'showGuides', label: 'Show guides', type: 'checkbox' },
-      { key: 'showRulers', label: 'Show rulers', type: 'checkbox' },
-      { key: 'showGrid', label: 'Show grid', type: 'checkbox' },
-      { key: 'snap', label: 'Snap to guides and grid', type: 'checkbox' },
-      { key: 'gridSize', label: 'Gridline Every', type: 'slider', min: 4, max: 200, step: 1, unit: 'px' },
-      { key: 'gridSubdivisions', label: 'Subdivisions', type: 'slider', min: 1, max: 20, step: 1 },
+      { key: 'showGuides', label: t('Show guides'), type: 'checkbox' },
+      { key: 'showRulers', label: t('Show rulers'), type: 'checkbox' },
+      { key: 'showGrid', label: t('Show grid'), type: 'checkbox' },
+      { key: 'snap', label: t('Snap to guides and grid'), type: 'checkbox' },
+      { key: 'gridSize', label: t('Gridline Every'), type: 'slider', min: 4, max: 200, step: 1, unit: 'px' },
+      { key: 'gridSubdivisions', label: t('Subdivisions'), type: 'slider', min: 1, max: 20, step: 1 },
     ],
   },
 ];
@@ -285,11 +283,22 @@ export function applyStoredPreferences() {
 
   const root = document.documentElement;
   const accent = toHex(parseColor(p.accent));
-  root.style.setProperty('--accent', accent);
-  root.style.setProperty('--accent-hi', shade(accent, 0.09));
-  const a = parseColor(accent);
-  root.style.setProperty('--accent-soft', `rgba(${a.r},${a.g},${a.b},0.24)`);
-  root.style.setProperty('--bg-canvas', toHex(parseColor(p.canvasBg)));
+  if (accent === toHex(parseColor(PREF_DEFAULTS.accent))) {
+    for (const name of ['--accent', '--accent-hi', '--accent-soft']) root.style.removeProperty(name);
+  } else {
+    root.style.setProperty('--accent', accent);
+    root.style.setProperty('--accent-hi', shade(accent, 0.09));
+    const a = parseColor(accent);
+    root.style.setProperty('--accent-soft', `rgba(${a.r},${a.g},${a.b},0.24)`);
+  }
+  const canvasBg = toHex(parseColor(p.canvasBg));
+  if (canvasBg === toHex(parseColor(PREF_DEFAULTS.canvasBg))) {
+    root.style.removeProperty('--bg-canvas');
+    root.style.removeProperty('--void');
+  } else {
+    root.style.setProperty('--bg-canvas', canvasBg);
+    root.style.setProperty('--void', canvasBg);
+  }
   root.style.setProperty('--panel-w', `${p.panelWidth}px`);
   root.style.setProperty('--toolbar-w', `${p.toolbarWidth}px`);
   root.style.setProperty('--row-h', `${p.rowHeight}px`);
@@ -300,7 +309,7 @@ export function applyStoredPreferences() {
     if (p.resetColorsOnLaunch) app.resetColors();
   }
   app.emit('prefs-change', p);
-  app.requestRender();
+  applyTheme(root.dataset.theme || 'dark');
 }
 
 /* ------------------------------------------------------------------ */
@@ -356,7 +365,7 @@ export async function showPreferencesDialog(categoryId = 'general') {
   const working = allPrefs();
   // Kept pristine so the commit can tell what this dialog actually changed.
   const opened = JSON.parse(JSON.stringify(working));
-  const dlg = new Dialog({ title: 'Preferences', width: 620, className: 'pkd-prefs-dialog' });
+  const dlg = new Dialog({ title: t('Preferences'), width: 620, className: 'pkd-prefs-dialog' });
 
   const nav = el('div.pkd-prefs-nav');
   const body = el('div.pkd-prefs-body');
@@ -386,21 +395,21 @@ export async function showPreferencesDialog(categoryId = 'general') {
   dlg.setBody(el('div.pkd-prefs', {}, nav, body));
   dlg.setButtons([
     {
-      label: 'Reset Defaults', subtle: true,
+      label: t('Reset Defaults'), subtle: true,
       onClick: () => {
         Object.assign(working, PREF_DEFAULTS);
         renderBody();
         return false;
       },
     },
-    { label: 'Cancel', value: null, subtle: true },
-    { label: 'OK', primary: true, onClick: (d) => { d.close({ ...working }); return false; } },
+    { label: t('Cancel'), value: null, subtle: true },
+    { label: t('OK'), primary: true, onClick: (d) => { d.close({ ...working }); return false; } },
   ]);
 
   const result = await dlg.open();
   if (!result) return null;
   commitPrefs(result, opened);
-  app.toast('Preferences saved.', 'ok');
+  app.toast(t('Preferences saved.'), 'ok');
   return result;
 }
 

@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { Tool, registerTool } from './base.js';
 import { app } from '../core/app.js';
 import { LayerType, translateLayerGeometry } from '../core/layer.js';
@@ -267,17 +268,17 @@ const ALIGN_BUTTONS = [
 function renderAlignBar(container) {
   const bar = el('div.pk-align-bar');
   for (const [ico, how, title] of ALIGN_BUTTONS) {
-    const b = el('button.pk-icon-btn', { type: 'button', title, onclick: () => alignLayers(app.activeDoc, how) });
+    const b = el('button.pk-icon-btn', { type: 'button', title: t(title), onclick: () => alignLayers(app.activeDoc, how) });
     b.appendChild(iconEl(ico));
     bar.appendChild(b);
   }
   bar.appendChild(el('span.pk-vsep'));
   bar.appendChild(el('button.pk-btn.subtle.pk-align-dist', {
-    type: 'button', text: 'Dist H', title: 'Distribute horizontal centres',
+    type: 'button', text: t('Dist H'), title: t('Distribute horizontal centres'),
     onclick: () => distributeLayers(app.activeDoc, 'h'),
   }));
   bar.appendChild(el('button.pk-btn.subtle.pk-align-dist', {
-    type: 'button', text: 'Dist V', title: 'Distribute vertical centres',
+    type: 'button', text: t('Dist V'), title: t('Distribute vertical centres'),
     onclick: () => distributeLayers(app.activeDoc, 'v'),
   }));
   container.appendChild(bar);
@@ -306,7 +307,7 @@ class MoveTool extends Tool {
         { key: 'autoSelect', type: 'checkbox', label: 'Auto-Select', default: false },
         {
           key: 'autoSelectKind', type: 'select', label: '', default: 'layer',
-          options: [{ value: 'layer', label: 'Layer' }, { value: 'group', label: 'Group' }],
+          options: [{ value: 'layer', label: t('Layer') }, { value: 'group', label: t('Group') }],
           when: (s) => s.autoSelect,
         },
         { key: 'showTransform', type: 'checkbox', label: 'Show Transform Controls', default: false },
@@ -716,14 +717,14 @@ function translateMask(mask, w, h, dx, dy) {
 /* ------------------------------------------------------------------ */
 
 const ARTBOARD_PRESETS = [
-  { value: 'custom', label: 'Custom', w: 0, h: 0 },
-  { value: 'web-1366', label: 'Web 1366 × 768', w: 1366, h: 768 },
-  { value: 'web-1920', label: 'Web 1920 × 1080', w: 1920, h: 1080 },
-  { value: 'mbp', label: 'Laptop 1440 × 900', w: 1440, h: 900 },
-  { value: 'phone', label: 'Phone 390 × 844', w: 390, h: 844 },
-  { value: 'tablet', label: 'Tablet 820 × 1180', w: 820, h: 1180 },
-  { value: 'a4', label: 'A4 595 × 842', w: 595, h: 842 },
-  { value: 'square', label: 'Square 1080', w: 1080, h: 1080 },
+  { value: 'custom', label: t('Custom'), w: 0, h: 0 },
+  { value: 'web-1366', label: t('Web 1366 × 768'), w: 1366, h: 768 },
+  { value: 'web-1920', label: t('Web 1920 × 1080'), w: 1920, h: 1080 },
+  { value: 'mbp', label: t('Laptop 1440 × 900'), w: 1440, h: 900 },
+  { value: 'phone', label: t('Phone 390 × 844'), w: 390, h: 844 },
+  { value: 'tablet', label: t('Tablet 820 × 1180'), w: 820, h: 1180 },
+  { value: 'a4', label: t('A4 595 × 842'), w: 595, h: 842 },
+  { value: 'square', label: t('Square 1080'), w: 1080, h: 1080 },
 ];
 
 function artboardsOf(doc) {

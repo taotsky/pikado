@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import './basic.css';
 import { registerAdjustment, buildLUT, buildLUTf, sampleLUT, applyLUT } from './registry.js';
 import { el, clamp, clamp255 } from '../core/util.js';
@@ -105,7 +106,7 @@ export function presetParam(cfg) {
     default: def,
     render(container, state, onChange) {
       const sel = el('select.pk-select.pk-preset-select');
-      for (const n of names) sel.appendChild(el('option', { value: n, text: n }));
+      for (const n of names) sel.appendChild(el('option', { value: n, text: t(n) }));
       sel.value = state[cfg.key] || def;
       sel.addEventListener('change', () => {
         const values = cfg.presets[sel.value] || {};
@@ -262,7 +263,7 @@ function buildLevelsWidget(container, key, state, onChange) {
 
   const chanSelect = el('select.pk-select.pk-levels-chan');
   for (const c of [{ v: 'rgb', l: 'RGB' }, { v: 'r', l: 'Red' }, { v: 'g', l: 'Green' }, { v: 'b', l: 'Blue' }]) {
-    chanSelect.appendChild(el('option', { value: c.v, text: c.l }));
+    chanSelect.appendChild(el('option', { value: c.v, text: t(c.l) }));
   }
   chanSelect.value = value.channel;
   chanSelect.addEventListener('change', () => {
@@ -272,7 +273,7 @@ function buildLevelsWidget(container, key, state, onChange) {
   });
 
   const autoBtn = el('button.pk-btn.subtle', {
-    type: 'button', text: 'Auto', title: 'Clip 0.1% of each channel',
+    type: 'button', text: t('Auto'), title: t('Clip 0.1% of each channel'),
     onclick: () => {
       const next = cloneLevels(value);
       for (const ch of ['r', 'g', 'b']) {
@@ -286,7 +287,7 @@ function buildLevelsWidget(container, key, state, onChange) {
     },
   });
   const resetBtn = el('button.pk-btn.subtle', {
-    type: 'button', text: 'Reset', title: 'Reset this channel',
+    type: 'button', text: t('Reset'), title: t('Reset this channel'),
     onclick: () => {
       const next = cloneLevels(value);
       next[next.channel] = blankLevels();
@@ -322,13 +323,13 @@ function buildLevelsWidget(container, key, state, onChange) {
 
   const root = el('div.pk-levels', {},
     el('div.pk-levels-head', {},
-      el('span.pk-levels-lbl', { text: 'Channel' }), chanSelect,
+      el('span.pk-levels-lbl', { text: t('Channel') }), chanSelect,
       el('div.pk-spacer'), autoBtn, resetBtn),
     canvas,
     el('div.pk-levels-nums', {},
-      el('span.pk-levels-lbl', { text: 'Input' }), ibNum, igNum, iwNum,
+      el('span.pk-levels-lbl', { text: t('Input') }), ibNum, igNum, iwNum,
       el('div.pk-spacer'),
-      el('span.pk-levels-lbl', { text: 'Output' }), obNum, owNum)
+      el('span.pk-levels-lbl', { text: t('Output') }), obNum, owNum)
   );
   container.appendChild(root);
 
@@ -604,7 +605,7 @@ function bandWeight(hue, center) {
 }
 
 const hsParams = [
-  { key: 'range', label: 'Edit', type: 'select', default: 'master', options: HS_RANGES.map((r) => ({ value: r.id, label: r.label })), when: (s) => !s.colorize },
+  { key: 'range', label: 'Edit', type: 'select', default: 'master', options: HS_RANGES.map((r) => ({ value: r.id, label: t(r.label) })), when: (s) => !s.colorize },
   { key: 'colorize', label: 'Colorize', type: 'checkbox', default: false },
 ];
 for (const r of HS_RANGES) {
@@ -912,7 +913,7 @@ const cmParams = [
   { key: 'monochrome', label: 'Monochrome', type: 'checkbox', default: false },
   {
     key: 'outputChannel', label: 'Output Channel', type: 'select', default: 'red',
-    options: CM_OUTPUTS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) })),
+    options: CM_OUTPUTS.map((c) => ({ value: c, label: t(c[0].toUpperCase() + c.slice(1)) })),
     when: (s) => !s.monochrome,
   },
   { type: 'separator' },

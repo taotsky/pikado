@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { registerFilter, makeRandom } from './registry.js';
 import { gaussianBlurBuffer } from './blur.js';
 import { curveParam, curveToLUT, isIdentityCurve, defaultCurves } from '../ui/curve-editor.js';
@@ -1094,7 +1095,7 @@ registerFilter({
   dialogWidth: 460,
   params: [
     { key: 'treatment', label: 'Treatment', type: 'radio', default: 'color',
-      options: [{ value: 'color', label: 'Color' }, { value: 'bw', label: 'Black & White' }] },
+      options: [{ value: 'color', label: t('Color') }, { value: 'bw', label: t('Black & White') }] },
 
     { type: 'label', label: 'White Balance' },
     slider('temperature', 'Temperature', -100, 100, 0),

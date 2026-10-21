@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { registerFilter } from './registry.js';
 import { operableRect, operableSurface } from './run.js';
 import { app } from '../core/app.js';
@@ -102,8 +103,8 @@ function warp(imageData, edge, mapFn) {
 }
 
 const UNDEFINED_AREAS = [
-  { value: 'wrap', label: 'Wrap Around' },
-  { value: 'repeat', label: 'Repeat Edge Pixels' },
+  { value: 'wrap', label: t('Wrap Around') },
+  { value: 'repeat', label: t('Repeat Edge Pixels') },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -210,16 +211,16 @@ registerFilter({
     {
       key: 'mapType', label: 'Displacement Map', type: 'select', default: 'perlin',
       options: [
-        { value: 'perlin', label: 'Perlin Noise' },
-        { value: 'ripples', label: 'Ripples' },
-        { value: 'bars', label: 'Bars' },
-        { value: 'checkers', label: 'Checkers' },
+        { value: 'perlin', label: t('Perlin Noise') },
+        { value: 'ripples', label: t('Ripples') },
+        { value: 'bars', label: t('Bars') },
+        { value: 'checkers', label: t('Checkers') },
       ],
     },
     { key: 'seed', label: 'Seed', type: 'slider', min: 1, max: 9999, step: 1, default: 137, when: (s) => s.mapType === 'perlin' },
     {
       key: 'fit', label: 'Map Fit', type: 'radio', default: 'stretch',
-      options: [{ value: 'stretch', label: 'Stretch To Fit' }, { value: 'tile', label: 'Tile' }],
+      options: [{ value: 'stretch', label: t('Stretch To Fit') }, { value: 'tile', label: t('Tile') }],
     },
     { key: 'detail', label: 'Tile Size', type: 'slider', min: 2, max: 100, step: 1, default: 25, unit: '%', when: (s) => s.fit === 'tile' },
     { key: 'undefinedAreas', label: 'Undefined Areas', type: 'radio', default: 'repeat', options: UNDEFINED_AREAS },
@@ -281,8 +282,8 @@ registerFilter({
     {
       key: 'mode', label: 'Conversion', type: 'radio', default: 'rect2polar',
       options: [
-        { value: 'rect2polar', label: 'Rectangular to Polar' },
-        { value: 'polar2rect', label: 'Polar to Rectangular' },
+        { value: 'rect2polar', label: t('Rectangular to Polar') },
+        { value: 'polar2rect', label: t('Polar to Rectangular') },
       ],
     },
   ],
@@ -324,7 +325,7 @@ registerFilter({
     { key: 'amount', label: 'Amount', type: 'slider', min: -999, max: 999, step: 1, default: 100, unit: '%' },
     {
       key: 'size', label: 'Size', type: 'select', default: 'medium',
-      options: [{ value: 'small', label: 'Small' }, { value: 'medium', label: 'Medium' }, { value: 'large', label: 'Large' }],
+      options: [{ value: 'small', label: t('Small') }, { value: 'medium', label: t('Medium') }, { value: 'large', label: t('Large') }],
     },
   ],
   apply(imageData, p) {
@@ -376,9 +377,9 @@ registerFilter({
     {
       key: 'mode', label: 'Mode', type: 'select', default: 'normal',
       options: [
-        { value: 'normal', label: 'Normal' },
-        { value: 'horizontal', label: 'Horizontal Only' },
-        { value: 'vertical', label: 'Vertical Only' },
+        { value: 'normal', label: t('Normal') },
+        { value: 'horizontal', label: t('Horizontal Only') },
+        { value: 'vertical', label: t('Vertical Only') },
       ],
     },
   ],
@@ -479,7 +480,7 @@ registerFilter({
     { key: 'scaleV', label: 'Vertical Scale', type: 'slider', min: 0, max: 100, step: 1, default: 100, unit: '%' },
     {
       key: 'type', label: 'Type', type: 'radio', default: 'sine',
-      options: [{ value: 'sine', label: 'Sine' }, { value: 'triangle', label: 'Triangle' }, { value: 'square', label: 'Square' }],
+      options: [{ value: 'sine', label: t('Sine') }, { value: 'triangle', label: t('Triangle') }, { value: 'square', label: t('Square') }],
     },
     { key: 'undefinedAreas', label: 'Undefined Areas', type: 'radio', default: 'repeat', options: UNDEFINED_AREAS },
     { key: 'seed', label: 'Randomize', type: 'slider', min: 1, max: 9999, step: 1, default: 42 },
@@ -556,9 +557,9 @@ registerFilter({
     {
       key: 'style', label: 'Style', type: 'select', default: 'pond',
       options: [
-        { value: 'around', label: 'Around Center' },
-        { value: 'out', label: 'Out From Center' },
-        { value: 'pond', label: 'Pond Ripples' },
+        { value: 'around', label: t('Around Center') },
+        { value: 'out', label: t('Out From Center') },
+        { value: 'pond', label: t('Pond Ripples') },
       ],
     },
   ],
@@ -595,7 +596,7 @@ registerFilter({
   menu: 'Distort',
   dialogWidth: 400,
   params: [
-    { key: 'distortion', label: 'Remove Distortion', type: 'slider', min: -100, max: 100, step: 1, default: 0, hint: '− barrel · + pincushion' },
+    { key: 'distortion', label: 'Remove Distortion', type: 'slider', min: -100, max: 100, step: 1, default: 0, hint: t('− barrel · + pincushion') },
     { key: 'chromaRC', label: 'Fix Red/Cyan Fringe', type: 'slider', min: -100, max: 100, step: 1, default: 0 },
     { key: 'chromaBY', label: 'Fix Blue/Yellow Fringe', type: 'slider', min: -100, max: 100, step: 1, default: 0 },
     { type: 'separator' },
@@ -692,16 +693,16 @@ const MESH_N = 65;
 
 /** The Liquify tool list, in the order the dialog offers them. */
 export const LIQUIFY_TOOLS = [
-  { value: 'push', label: 'Forward Warp' },
-  { value: 'reconstruct', label: 'Reconstruct' },
-  { value: 'smooth', label: 'Smooth' },
-  { value: 'twirl-cw', label: 'Twirl Clockwise' },
-  { value: 'twirl-ccw', label: 'Twirl Anticlockwise' },
-  { value: 'pucker', label: 'Pucker' },
-  { value: 'bloat', label: 'Bloat' },
-  { value: 'push-left', label: 'Push Left' },
-  { value: 'freeze', label: 'Freeze Mask' },
-  { value: 'thaw', label: 'Thaw Mask' },
+  { value: 'push', label: t('Forward Warp') },
+  { value: 'reconstruct', label: t('Reconstruct') },
+  { value: 'smooth', label: t('Smooth') },
+  { value: 'twirl-cw', label: t('Twirl Clockwise') },
+  { value: 'twirl-ccw', label: t('Twirl Anticlockwise') },
+  { value: 'pucker', label: t('Pucker') },
+  { value: 'bloat', label: t('Bloat') },
+  { value: 'push-left', label: t('Push Left') },
+  { value: 'freeze', label: t('Freeze Mask') },
+  { value: 'thaw', label: t('Thaw Mask') },
 ];
 
 /** Tools that keep working while the pointer is held still. */
@@ -955,7 +956,7 @@ function renderLiquify(container, state, onChange) {
   const layer = doc && doc.activeLayer();
   const surf = doc && layer ? operableSurface(doc, layer) : null;
   if (!surf) {
-    container.appendChild(el('div.pk-hint', { text: 'No editable layer.' }));
+    container.appendChild(el('div.pk-hint', { text: t('No editable layer.') }));
     return null;
   }
   const rect = operableRect(doc);
@@ -1127,7 +1128,7 @@ function renderLiquify(container, state, onChange) {
   view.addEventListener('lostpointercapture', finish);
 
   const act = (label, fn, title) => el('button.pk-btn.subtle', {
-    type: 'button', text: label, title: title || label,
+    type: 'button', text: t(label), title: t(title || label),
     onclick: () => {
       fn();
       draw();
@@ -1144,7 +1145,7 @@ function renderLiquify(container, state, onChange) {
       for (let i = 0; i < mesh.frozen.length; i++) mesh.frozen[i] = 1 - mesh.frozen[i];
     }, 'Swap frozen and thawed areas'),
     act('Thaw All', () => mesh.frozen.fill(0), 'Clear the freeze mask'),
-    el('span.pk-hint', { text: 'Drag on the preview to warp' })
+    el('span.pk-hint', { text: t('Drag on the preview to warp') })
   );
 
   container.classList.add('pk-liquify');
@@ -1178,11 +1179,11 @@ registerFilter({
     { key: 'brushPressure', label: 'Brush Pressure', type: 'slider', min: 1, max: 100, step: 1, default: 60 },
     {
       key: 'brushRate', label: 'Brush Rate', type: 'slider', min: 1, max: 100, step: 1, default: 40,
-      hint: 'Speed of the tools that keep working while you hold still',
+      hint: t('Speed of the tools that keep working while you hold still'),
     },
     {
       key: 'brushDensity', label: 'Brush Density', type: 'slider', min: 0, max: 100, step: 1, default: 50,
-      hint: 'How far the effect reaches toward the brush edge',
+      hint: t('How far the effect reaches toward the brush edge'),
     },
     { key: 'showMesh', label: 'Show Mesh', type: 'checkbox', default: false },
     { key: 'showMask', label: 'Show Frozen Areas', type: 'checkbox', default: true },

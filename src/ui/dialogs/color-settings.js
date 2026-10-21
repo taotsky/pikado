@@ -1,3 +1,4 @@
+import { t } from '../../i18n.js';
 import './dialogs.css';
 import { el } from '../../core/util.js';
 import { Dialog, buildForm } from '../dialog.js';
@@ -34,7 +35,7 @@ function sourceNote(doc) {
   return [{
     type: 'label',
     className: 'pk-hint pk-source-profile',
-    label: `Opened from a file tagged ${doc.sourceProfileName}; its colours were converted to sRGB as it opened.`,
+    label: t('Opened from a file tagged {profile}; its colours were converted to sRGB as it opened.', { profile: doc.sourceProfileName }),
   }];
 }
 
@@ -44,30 +45,30 @@ export async function showAssignProfileDialog(doc = app.activeDoc) {
   const current = profileOf(doc);
   const state = { profile: current.id === 'embedded' ? 'embedded' : current.id };
 
-  const dialog = new Dialog({ title: 'Assign Profile', width: 420 });
+  const dialog = new Dialog({ title: t('Assign Profile'), width: 420 });
   const form = buildForm([
-    { type: 'label', label: `This document is currently ${current.name}` },
+    { type: 'label', label: t('This document is currently {profile}', { profile: current.name }) },
     ...sourceNote(doc),
-    { key: 'profile', label: 'Profile', type: 'select', options: profileOptions(doc) },
+    { key: 'profile', label: t('Profile'), type: 'select', options: profileOptions(doc) },
     {
       type: 'label',
       className: 'pk-hint',
-      label: 'Assigning relabels the pixels without changing them, so the picture will '
-        + 'look different. Use Convert to Profile to keep the appearance instead.',
+      label: t('Assigning relabels the pixels without changing them, so the picture will '
+        + 'look different. Use Convert to Profile to keep the appearance instead.'),
     },
   ], state, (key, value) => { state[key] = value; });
 
   dialog.setBody(form.node);
   dialog.setButtons([
-    { label: 'Cancel', value: false, subtle: true },
-    { label: 'Assign', primary: true, value: true },
+    { label: t('Cancel'), value: false, subtle: true },
+    { label: t('Assign'), primary: true, value: true },
   ]);
   const ok = await dialog.open();
   if (!ok) return false;
   const next = resolve(doc, state.profile);
   if (!next) return false;
   assignProfile(doc, next);
-  app.toast(`Assigned ${next.name}`, 'ok');
+  app.toast(t('Assigned {profile}', { profile: next.name }), 'ok');
   return true;
 }
 
@@ -81,30 +82,30 @@ export async function showConvertProfileDialog(doc = app.activeDoc) {
     blackPoint: true,
   };
 
-  const dialog = new Dialog({ title: 'Convert to Profile', width: 440 });
+  const dialog = new Dialog({ title: t('Convert to Profile'), width: 440 });
   let form = null;
   const note = el('div.pk-hint');
   const syncNote = () => {
     const exact = intentIsExact(state.intent);
     note.textContent = exact
-      ? 'Colours outside the destination gamut are clipped; converting back will not restore them.'
-      : 'A matrix profile has no perceptual table, so this intent behaves as Relative Colorimetric.';
+      ? t('Colours outside the destination gamut are clipped; converting back will not restore them.')
+      : t('A matrix profile has no perceptual table, so this intent behaves as Relative Colorimetric.');
   };
 
   form = buildForm([
-    { type: 'label', label: `Source: ${current.name}` },
+    { type: 'label', label: t('Source: {profile}', { profile: current.name }) },
     ...sourceNote(doc),
-    { key: 'profile', label: 'Destination', type: 'select', options: profileOptions(doc) },
-    { key: 'intent', label: 'Intent', type: 'select', options: INTENTS },
-    { key: 'blackPoint', label: 'Use Black Point Compensation', type: 'checkbox' },
+    { key: 'profile', label: t('Destination'), type: 'select', options: profileOptions(doc) },
+    { key: 'intent', label: t('Intent'), type: 'select', options: INTENTS.map(option => ({ ...option, label: t(option.label) })) },
+    { key: 'blackPoint', label: t('Use Black Point Compensation'), type: 'checkbox' },
     {
       type: 'label',
       className: 'pk-hint',
       // Honest about when it does nothing: the built-in spaces are idealised and
       // have a black point of zero, so there is nothing to compensate between them.
-      label: 'Black point compensation only has an effect when a profile declares a '
+      label: t('Black point compensation only has an effect when a profile declares a '
         + 'real media black — an embedded profile with a bkpt tag. The built-in '
-        + 'working spaces have a black point of zero.',
+        + 'working spaces have a black point of zero.'),
     },
   ], state, (key, value) => {
     state[key] = value;
@@ -115,16 +116,16 @@ export async function showConvertProfileDialog(doc = app.activeDoc) {
 
   dialog.setBody(form.node, note);
   dialog.setButtons([
-    { label: 'Cancel', value: false, subtle: true },
-    { label: 'Convert', primary: true, value: true },
+    { label: t('Cancel'), value: false, subtle: true },
+    { label: t('Convert'), primary: true, value: true },
   ]);
   const ok = await dialog.open();
   if (!ok) return false;
   const next = resolve(doc, state.profile);
   if (!next) return false;
-  const done = await app.busy('Converting…', async () =>
+  const done = await app.busy(t('Converting…'), async () =>
     convertToProfile(doc, next, { intent: state.intent, blackPoint: state.blackPoint }));
-  if (done) app.toast(`Converted to ${done.name}`, 'ok');
+  if (done) app.toast(t('Converted to {profile}', { profile: done.name }), 'ok');
   return !!done;
 }
 
@@ -135,7 +136,7 @@ export async function showProofSetupDialog(doc = app.activeDoc) {
   const before = { ...proof };
   const state = { ...proof };
 
-  const dialog = new Dialog({ title: 'Proof Setup', width: 440 });
+  const dialog = new Dialog({ title: t('Proof Setup'), width: 440 });
   let form = null;
   const apply = () => {
     setProof(doc, state);
@@ -143,16 +144,16 @@ export async function showProofSetupDialog(doc = app.activeDoc) {
   };
 
   form = buildForm([
-    { key: 'profileId', label: 'Simulate', type: 'select', options: profileOptions(doc).filter((o) => o.value !== 'embedded') },
-    { key: 'intent', label: 'Intent', type: 'select', options: INTENTS },
-    { key: 'blackPoint', label: 'Black Point Compensation', type: 'checkbox' },
-    { key: 'enabled', label: 'Preview', type: 'checkbox' },
-    { key: 'gamutWarning', label: 'Show out-of-gamut areas', type: 'checkbox' },
+    { key: 'profileId', label: t('Simulate'), type: 'select', options: profileOptions(doc).filter((o) => o.value !== 'embedded') },
+    { key: 'intent', label: t('Intent'), type: 'select', options: INTENTS.map(option => ({ ...option, label: t(option.label) })) },
+    { key: 'blackPoint', label: t('Black Point Compensation'), type: 'checkbox' },
+    { key: 'enabled', label: t('Preview'), type: 'checkbox' },
+    { key: 'gamutWarning', label: t('Show out-of-gamut areas'), type: 'checkbox' },
     {
       type: 'label',
       className: 'pk-hint',
-      label: 'Proofing changes the view only. Export, Save and every filter keep reading '
-        + 'the document\'s real colours.',
+      label: t('Proofing changes the view only. Export, Save and every filter keep reading '
+        + 'the document\'s real colours.'),
     },
   ], state, (key, value) => {
     state[key] = value;
@@ -163,8 +164,8 @@ export async function showProofSetupDialog(doc = app.activeDoc) {
 
   dialog.setBody(form.node);
   dialog.setButtons([
-    { label: 'Cancel', value: false, subtle: true },
-    { label: 'OK', primary: true, value: true },
+    { label: t('Cancel'), value: false, subtle: true },
+    { label: t('OK'), primary: true, value: true },
   ]);
   // Show the proof while the dialog is open, whatever it was before.
   apply();

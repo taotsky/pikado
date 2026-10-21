@@ -73,6 +73,6 @@
   display: flex; align-items: center; gap: 2px;
   height: 33px; padding: 0 7px;
   flex: 0 0 auto;
-  background: rgba(255, 255, 255, .022);
+  background: rgba(var(--ui-ink), .022);
   border-top: 1px solid var(--hair);
 }

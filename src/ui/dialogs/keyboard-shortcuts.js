@@ -1,3 +1,4 @@
+import { t } from '../../i18n.js';
 import './dialogs.css';
 import { app } from '../../core/app.js';
 import { el, debounce } from '../../core/util.js';
@@ -142,9 +143,9 @@ function accelFromEvent(e) {
 
 /** Edit > Keyboard Shortcuts… */
 export async function showKeyboardShortcutsDialog() {
-  const dlg = new Dialog({ title: 'Keyboard Shortcuts', width: 660, className: 'pkd-keys' });
+  const dlg = new Dialog({ title: t('Keyboard Shortcuts'), width: 660, className: 'pkd-keys' });
 
-  const search = el('input.pk-input', { type: 'text', placeholder: 'Search commands or keys…' });
+  const search = el('input.pk-input', { type: 'text', placeholder: t('Search commands or keys…') });
   const count = el('span.pk-hint');
   const scroll = el('div.pkd-keys-scroll');
   const table = el('table.pkd-keys-table');
@@ -177,18 +178,18 @@ export async function showKeyboardShortcutsDialog() {
     const { grouped, total } = rows();
     const body = el('tbody');
     for (const [name, list] of grouped) {
-      body.appendChild(el('tr.pkd-keys-group', {}, el('td', { colspan: 3, text: name })));
+      body.appendChild(el('tr.pkd-keys-group', {}, el('td', { colspan: 3, text: t(name) })));
       for (const cmd of list) body.appendChild(renderRow(cmd));
     }
     table.replaceChildren(
       el('thead', {}, el('tr', {},
-        el('th', { text: 'Command' }),
-        el('th', { text: 'Shortcut', style: { width: '140px' } }),
+        el('th', { text: t('Command') }),
+        el('th', { text: t('Shortcut'), style: { width: '140px' } }),
         el('th', { text: '', style: { width: '60px' } })
       )),
       body
     );
-    count.textContent = `${total} command${total === 1 ? '' : 's'}`;
+    count.textContent = t('{count} commands', { count: total });
   }
 
   function renderRow(cmd) {
@@ -196,10 +197,10 @@ export async function showKeyboardShortcutsDialog() {
     const btn = el('button.pkd-key-btn' + (isCustom ? '.custom' : ''), {
       type: 'button',
       text: cmd.accel ? formatAccel(cmd.accel) : '—',
-      title: cmd.accel || 'No shortcut assigned',
+      title: cmd.accel || t('No shortcut assigned'),
     });
     const clearBtn = el('button.pk-btn.subtle.pkd-key-clear', {
-      type: 'button', text: 'Reset',
+      type: 'button', text: t('Reset'),
       style: { padding: '2px 8px', height: 'auto' },
       onclick: () => { setOverride(cmd.id, null); render(); },
     });
@@ -209,7 +210,7 @@ export async function showKeyboardShortcutsDialog() {
       if (recording) return;
       recording = true;
       btn.classList.add('recording');
-      btn.textContent = 'Press keys…';
+      btn.textContent = t('Press keys…');
       const onKey = (e) => {
         if (e.key === 'Control' || e.key === 'Shift' || e.key === 'Alt' || e.key === 'Meta') return;
         e.preventDefault();
@@ -222,7 +223,7 @@ export async function showKeyboardShortcutsDialog() {
         const binding = accelBinding(accel);
         const clash = [...commands.values()].find((c) => c.id !== cmd.id && accelBinding(c.accel) === binding);
         setOverride(cmd.id, accel);
-        if (clash) app.toast(`${formatAccel(accel)} was also used by "${labelOf(clash.id)}".`, 'warn', 4000);
+        if (clash) app.toast(t('{keys} was also used by "{command}".', { keys: formatAccel(accel), command: labelOf(clash.id) }), 'warn', 4000);
         render();
       };
       window.addEventListener('keydown', onKey, true);
@@ -241,13 +242,13 @@ export async function showKeyboardShortcutsDialog() {
     el('div', {},
       el('div.pkd-keys-search', {}, search, count),
       scroll,
-      el('div.pkd-note', { style: { marginTop: '8px' }, text: 'Click a shortcut to record a new one. Press Backspace to remove it, Escape to cancel.' })
+      el('div.pkd-note', { style: { marginTop: '8px' }, text: t('Click a shortcut to record a new one. Press Backspace to remove it, Escape to cancel.') })
     )
   );
 
   dlg.setButtons([
     {
-      label: 'Reset All', subtle: true,
+      label: t('Reset All'), subtle: true,
       onClick: () => {
         for (const id of Object.keys(overrides)) setOverride(id, null);
         overrides = {};
@@ -257,7 +258,7 @@ export async function showKeyboardShortcutsDialog() {
         return false;
       },
     },
-    { label: 'Done', value: true, primary: true },
+    { label: t('Done'), value: true, primary: true },
   ]);
 
   render();

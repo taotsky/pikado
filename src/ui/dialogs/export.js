@@ -1,3 +1,4 @@
+import { t } from '../../i18n.js';
 import './dialogs.css';
 import { app } from '../../core/app.js';
 import { el, createCanvas, formatBytes, download, debounce } from '../../core/util.js';
@@ -17,6 +18,7 @@ import { writeICNS, icnsSizesFor } from '../../io/icns.js';
 
 const FORMATS = [
   { value: 'png', label: 'PNG', mime: 'image/png', lossy: false, alpha: true, ext: 'png' },
+  { value: 'psd', label: 'PSD', lossy: false, alpha: true, ext: 'psd', layered: true },
   { value: 'jpg', label: 'JPG', mime: 'image/jpeg', lossy: true, alpha: false, ext: 'jpg' },
   { value: 'webp', label: 'WebP', mime: 'image/webp', lossy: true, alpha: true, ext: 'webp' },
   { value: 'gif', label: 'GIF', mime: 'image/gif', lossy: false, alpha: true, ext: 'gif' },
@@ -24,7 +26,7 @@ const FORMATS = [
   { value: 'heic', label: 'HEIC', mime: 'image/heic', lossy: true, alpha: true, ext: 'heic' },
   // An icon is one file holding every size macOS asks for, so it has no export
   // scale and no per-layer mode.
-  { value: 'icns', label: 'ICNS (macOS icon)', mime: 'image/icns', lossy: false, alpha: true, ext: 'icns', icon: true },
+  { value: 'icns', label: t('ICNS (macOS icon)'), mime: 'image/icns', lossy: false, alpha: true, ext: 'icns', icon: true },
 ];
 
 const SCALES = [0.5, 1, 2, 3];
@@ -93,6 +95,11 @@ async function saveModule() {
 
 async function runExport(doc, opts) {
   const mod = await saveModule();
+  // A layered document must never fall through to a raster encoder.
+  if (opts.format === 'psd') {
+    return !!(mod && typeof mod.exportDocument === 'function'
+      && await mod.exportDocument(doc, { ...opts, scale: 1, transparent: true }));
+  }
   if (mod && typeof mod.exportDocument === 'function') {
     try {
       // io/save.js takes quality as 0..1; the dialog works in percent. It
@@ -151,7 +158,7 @@ export async function showExportDialog(doc = app.activeDoc) {
     filename: baseName(doc),
   };
 
-  const dlg = new Dialog({ title: 'Export As', width: 620, className: 'pkd-export' });
+  const dlg = new Dialog({ title: t('Export As'), width: 620, className: 'pkd-export' });
 
   const source = compositeDocument(doc);
 
@@ -163,18 +170,18 @@ export async function showExportDialog(doc = app.activeDoc) {
   heicEncodeSupport().then(({ ok, reason }) => {
     heicOption.disabled = !ok;
     if (!ok) {
-      heicOption.textContent = 'HEIC (not available in this browser)';
-      heicNote.textContent = reason;
+      heicOption.textContent = t('HEIC (not available in this browser)');
+      heicNote.textContent = t(reason);
       heicNote.style.display = '';
     }
   });
   const qualityRange = el('input.pk-range', { type: 'range', min: 1, max: 100, step: 1, value: state.quality });
   const qualityNum = el('input.pk-num', { type: 'number', min: 1, max: 100, step: 1, value: state.quality });
-  const qualityRow = el('div.pk-field', {}, el('label', { text: 'Quality' }), el('div.pk-slider-row', {}, qualityRange, qualityNum));
+  const qualityRow = el('div.pk-field', {}, el('label', { text: t('Quality') }), el('div.pk-slider-row', {}, qualityRange, qualityNum));
   const scaleBtns = el('div.pkd-size-btns');
   const customScale = el('input.pk-input', { type: 'number', min: 0.05, max: 8, step: 0.05, value: 1, style: { width: '74px' } });
   const transparentInput = el('input', { type: 'checkbox', checked: true });
-  const transparentRow = el('label.pk-check', {}, transparentInput, el('span', { text: 'Transparency' }));
+  const transparentRow = el('label.pk-check', {}, transparentInput, el('span', { text: t('Transparency') }));
   const allLayersInput = el('input', { type: 'checkbox' });
   const nameInput = el('input.pk-input', { type: 'text', value: state.filename });
 
@@ -195,7 +202,7 @@ export async function showExportDialog(doc = app.activeDoc) {
   });
   transparentInput.addEventListener('change', () => { state.transparent = transparentInput.checked; sync(); });
   allLayersInput.addEventListener('change', () => { state.allLayers = allLayersInput.checked; sync(); });
-  nameInput.addEventListener('input', () => { state.filename = nameInput.value; });
+  nameInput.addEventListener('input', () => { state.filename = nameInput.value; estimate(); });
 
   function buildScaleButtons() {
     scaleBtns.replaceChildren(
@@ -210,14 +217,21 @@ export async function showExportDialog(doc = app.activeDoc) {
 
   const estimate = debounce(async () => {
     const fmt = formatOf(state.format);
+    if (fmt.layered) {
+      info.replaceChildren(
+        el('div', {}, el('b', { text: `${doc.width} × ${doc.height} px` }), ' · PSD'),
+        el('div', { text: t('Single file: {filename}', { filename: `${state.filename || baseName(doc)}.psd` }) })
+      );
+      return;
+    }
     if (fmt.icon) {
       const sizes = [...new Set(icnsSizesFor(doc.width, doc.height).map(([, s]) => s))];
       let blob = null;
       try { blob = await writeICNS(source); } catch { blob = null; }
       info.replaceChildren(
         el('div', {}, el('b', { text: `${sizes.join(', ')} px` }), ` · ${fmt.label}`),
-        el('div', { text: blob ? `Size ≈ ${formatBytes(blob.size)}` : 'Estimated size unavailable' }),
-        el('div', { text: Math.max(doc.width, doc.height) < 1024 ? 'Sizes above the document are left out rather than upscaled — 1024 px is the largest macOS uses.' : `Single file: ${state.filename || baseName(doc)}.${fmt.ext}` })
+        el('div', { text: blob ? t('Size ≈ {size}', { size: formatBytes(blob.size) }) : t('Estimated size unavailable') }),
+        el('div', { text: Math.max(doc.width, doc.height) < 1024 ? t('Sizes above the document are left out rather than upscaled — 1024 px is the largest macOS uses.') : t('Single file: {filename}', { filename: `${state.filename || baseName(doc)}.${fmt.ext}` }) })
       );
       return;
     }
@@ -242,14 +256,15 @@ export async function showExportDialog(doc = app.activeDoc) {
     // number mislead.
     const frameCount = Array.isArray(doc.frames) ? doc.frames.length : 0;
     const animated = fmt.value === 'gif' && frameCount > 1 && !state.allLayers;
-    info.replaceChildren(
+    if (state.format !== fmt.value) return;
+    info.replaceChildren(...[
       el('div', {}, el('b', { text: `${w} × ${h} px` }), ` · ${fmt.label}`),
-      el('div', { text: size ? `Estimated size ≈ ${formatBytes(Math.round(size))}${ratio > 1 ? ' (extrapolated)' : ''}${animated ? ' per frame' : ''}` : 'Estimated size unavailable' }),
-      el('div', { text: state.allLayers ? `Exports ${doc.flatLayers().filter((l) => l.visible && l.type !== 'adjustment').length} layers as separate files` : `Single file: ${state.filename || baseName(doc)}.${fmt.ext}` }),
+      el('div', { text: size ? t('Estimated size ≈ {size}{estimate}{perFrame}', { size: formatBytes(Math.round(size)), estimate: ratio > 1 ? t(' (extrapolated)') : '', perFrame: animated ? t(' per frame') : '' }) : t('Estimated size unavailable') }),
+      el('div', { text: state.allLayers ? t('Exports {count} layers as separate files', { count: doc.flatLayers().filter((l) => l.visible && l.type !== 'adjustment').length }) : t('Single file: {filename}', { filename: `${state.filename || baseName(doc)}.${fmt.ext}` }) }),
       animated
-        ? el('div', { text: `Animated: ${frameCount} frames, ${doc.loopCount ? `${doc.loopCount} play${doc.loopCount > 1 ? 's' : ''}` : 'looping forever'}` })
+        ? el('div', { text: t('Animated: {count} frames, {loops}', { count: frameCount, loops: doc.loopCount ? t('{count} plays', { count: doc.loopCount }) : t('looping forever') }) })
         : null
-    );
+    ].filter(Boolean));
   }, 220);
 
   function drawPreview() {
@@ -274,10 +289,11 @@ export async function showExportDialog(doc = app.activeDoc) {
     const fmt = formatOf(state.format);
     formatSelect.value = state.format;
     qualityRow.style.display = fmt.lossy ? '' : 'none';
-    transparentRow.style.display = fmt.alpha ? '' : 'none';
-    sizeRow.style.display = fmt.icon ? 'none' : '';
-    allLayersRow.style.display = fmt.icon ? 'none' : '';
+    transparentRow.style.display = fmt.alpha && !fmt.layered ? '' : 'none';
+    sizeRow.style.display = fmt.icon || fmt.layered ? 'none' : '';
+    allLayersRow.style.display = fmt.icon || fmt.layered ? 'none' : '';
     if (fmt.icon) state.allLayers = false;
+    if (fmt.layered) { state.scale = 1; state.transparent = true; state.allLayers = false; }
     transparentInput.checked = state.transparent;
     allLayersInput.checked = state.allLayers;
     if (!skipButtons) {
@@ -288,9 +304,9 @@ export async function showExportDialog(doc = app.activeDoc) {
     estimate();
   }
 
-  const field = (label, ...nodes) => el('div.pk-field', {}, el('label', { text: label }), ...nodes);
+  const field = (label, ...nodes) => el('div.pk-field', {}, el('label', { text: t(label) }), ...nodes);
   const sizeRow = field('Size', el('div.pkd-row', {}, scaleBtns, customScale, el('span.pk-unit', { text: '×' })));
-  const allLayersRow = el('label.pk-check', {}, allLayersInput, el('span', { text: 'Export all layers as separate files' }));
+  const allLayersRow = el('label.pk-check', {}, allLayersInput, el('span', { text: t('Export all layers as separate files') }));
 
   dlg.setBody(
     el('div.pkd-cols', {},
@@ -302,22 +318,22 @@ export async function showExportDialog(doc = app.activeDoc) {
         sizeRow,
         transparentRow,
         allLayersRow,
-        el('div.pkd-note', { text: 'GIF is written with a 256-colour median-cut palette. SVG embeds the rendered raster.' }),
+        el('div.pkd-note', { text: t('GIF is written with a 256-colour median-cut palette. SVG embeds the rendered raster.') }),
         heicNote
       )
     )
   );
 
   dlg.setButtons([
-    { label: 'Cancel', value: null, subtle: true },
-    { label: 'Export', primary: true, onClick: (d) => { d.close({ ...state }); return false; } },
+    { label: t('Cancel'), value: null, subtle: true },
+    { label: t('Export'), primary: true, onClick: (d) => { d.close({ ...state }); return false; } },
   ]);
 
   sync();
   const result = await dlg.open();
   if (!result) return null;
 
-  await app.busy('Exporting', async () => {
+  await app.busy(t('Exporting'), async () => {
     const opts = {
       format: result.format,
       quality: result.quality,
@@ -326,7 +342,7 @@ export async function showExportDialog(doc = app.activeDoc) {
       filename: result.filename || baseName(doc),
     };
     const ok = result.allLayers ? await runExportLayers(doc, opts) : await runExport(doc, opts);
-    app.toast(ok ? 'Export finished.' : 'Nothing was exported.', ok ? 'ok' : 'warn');
+    app.toast(ok ? t('Export finished.') : t('Nothing was exported.'), ok ? 'ok' : 'warn');
   });
   return result;
 }
@@ -334,7 +350,7 @@ export async function showExportDialog(doc = app.activeDoc) {
 /** File > Quick Export as PNG — no dialog, 1× PNG of the composite. */
 export async function quickExportPng(doc = app.activeDoc) {
   if (!doc) return;
-  await app.busy('Quick Export', async () => {
+  await app.busy(t('Quick Export'), async () => {
     await runExport(doc, { format: 'png', quality: 100, scale: 1, transparent: true, filename: baseName(doc) });
   });
 }

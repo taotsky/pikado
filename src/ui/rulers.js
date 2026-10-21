@@ -38,6 +38,7 @@ function rulerInk() {
     tick: t('--text-faint', '#61616e'),
     label: t('--text-dim', '#8b8b98'),
     cursor: t('--accent', '#7c6af6'),
+    seam: t('--hair', 'rgba(255,255,255,.07)'),
     font: t('--font', '-apple-system, "Segoe UI", Roboto, sans-serif'),
   };
   return ink;
@@ -66,6 +67,7 @@ export function installRulers(areaEl) {
   };
 
   const draw = rafThrottle(() => redraw(state));
+  app.on('theme-change', () => { ink = null; draw(); });
   const resize = () => { resizeCanvases(state); redraw(state); };
 
   const ro = new ResizeObserver(resize);
@@ -200,7 +202,7 @@ function drawRuler(s, axis) {
   if (doc) {
     const a = toRuler(0);
     const b = toRuler(horizontal ? doc.width : doc.height);
-    ctx.fillStyle = 'rgba(255,255,255,.07)';
+    ctx.fillStyle = c.seam;
     if (horizontal) ctx.fillRect(a, 0, b - a, thickness);
     else ctx.fillRect(0, a, thickness, b - a);
   }
@@ -270,7 +272,7 @@ function drawRuler(s, axis) {
 
   // Edge seam: a light hairline, matching the way the rest of the chrome
   // separates surfaces.
-  ctx.strokeStyle = 'rgba(255,255,255,.07)';
+  ctx.strokeStyle = c.seam;
   ctx.beginPath();
   if (horizontal) { ctx.moveTo(0, cssH - 0.5); ctx.lineTo(cssW, cssH - 0.5); }
   else { ctx.moveTo(cssW - 0.5, 0); ctx.lineTo(cssW - 0.5, cssH); }

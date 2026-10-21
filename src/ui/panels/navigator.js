@@ -1,3 +1,4 @@
+import { t as translateUI } from '../../i18n.js';
 import { registerPanel } from '../panel-host.js';
 import { app } from '../../core/app.js';
 import { el, clamp, createCanvas } from '../../core/util.js';
@@ -25,7 +26,7 @@ const scaleToSlider = (s) => clamp(((Math.log(clamp(s, MIN_SCALE, MAX_SCALE)) - 
 
 registerPanel({
   id: 'navigator',
-  title: 'Navigator',
+  title: translateUI('Navigator'),
   icon: 'navigator',
   group: 'bottom',
   order: 2,
@@ -106,10 +107,10 @@ registerPanel({
       const doc = app.activeDoc;
       ctx.clearRect(0, 0, view.width, view.height);
       if (!doc) {
-        ctx.fillStyle = 'rgba(255,255,255,.28)';
+        ctx.fillStyle = getComputedStyle(view).getPropertyValue('--text-dim').trim();
         ctx.font = '11px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('No document', view.width / 2, view.height / 2);
+        ctx.fillText(translateUI('No document'), view.width / 2, view.height / 2);
         return;
       }
       if (!fit) fit = computeFit(doc);
@@ -118,7 +119,7 @@ registerPanel({
       ctx.fillStyle = '#111';
       ctx.fillRect(fit.ox, fit.oy, doc.width * fit.scale, doc.height * fit.scale);
       ctx.drawImage(image, fit.ox, fit.oy, doc.width * fit.scale, doc.height * fit.scale);
-      ctx.strokeStyle = 'rgba(255,255,255,.22)';
+      ctx.strokeStyle = getComputedStyle(view).getPropertyValue('--hair-3').trim();
       ctx.lineWidth = 1;
       ctx.strokeRect(fit.ox + 0.5, fit.oy + 0.5, doc.width * fit.scale - 1, doc.height * fit.scale - 1);
       ctx.restore();
@@ -205,15 +206,15 @@ registerPanel({
     pct.addEventListener('keydown', (e) => { if (e.key === 'Enter') commitPct(); });
 
     const zoomOut = el('button.pk-icon-btn', {
-      type: 'button', title: 'Zoom out',
+      type: 'button', title: translateUI('Zoom out'),
       onclick: () => { if (app.activeDoc) { app.viewport.zoomStep(-1); app.emit('view-change'); app.requestRender(); syncZoom(); paint(); } },
     }, iconEl('minus'));
     const zoomIn = el('button.pk-icon-btn', {
-      type: 'button', title: 'Zoom in',
+      type: 'button', title: translateUI('Zoom in'),
       onclick: () => { if (app.activeDoc) { app.viewport.zoomStep(1); app.emit('view-change'); app.requestRender(); syncZoom(); paint(); } },
     }, iconEl('plus'));
     const fitBtn = el('button.pk-icon-btn', {
-      type: 'button', title: 'Fit on screen',
+      type: 'button', title: translateUI('Fit on screen'),
       onclick: () => { if (app.activeDoc) { app.fitView(); syncZoom(); paint(); } },
     }, iconEl('navigator'));
 
@@ -244,6 +245,7 @@ registerPanel({
     };
 
     app.on('doc-change', markDirty);
+    app.on('theme-change', paint);
     app.on('doc-structure', markDirty);
     app.on('doc-resize', () => { fit = null; markDirty(); });
     app.on('active-doc', () => { fit = null; markDirty(); syncZoom(); });

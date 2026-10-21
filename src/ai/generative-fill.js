@@ -1,4 +1,5 @@
 import { app } from '../core/app.js';
+import { t } from '../i18n.js';
 import { embedded } from '../embed/mode.js';
 import { Layer, LayerType } from '../core/layer.js';
 import { createCanvas, ctx2d } from '../core/util.js';
@@ -165,7 +166,7 @@ export async function runGenerativeFill(doc, opts) {
     );
   }
   if (rw && rw < size) {
-    app.toast(`${provider.name} returned ${rw}x${rh} instead of ${size}x${size}; the fill will be softer.`, 'warn', 4000);
+    app.toast(t('{provider} returned {width}×{height} instead of {size}×{size}; the fill will be softer.', { provider: provider.name, width: rw, height: rh, size }), 'warn', 4000);
   }
 
   const patch = patchFromResult(result.image, frame);

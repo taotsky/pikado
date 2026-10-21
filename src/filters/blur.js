@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 /**
  * Filter > Blur.
  *
@@ -852,10 +853,10 @@ registerFilter({
   params: [
     { key: 'amount', label: 'Amount', type: 'slider', min: 1, max: 100, step: 1, default: 10 },
     { key: 'method', label: 'Blur Method', type: 'radio', default: 'spin', options: [
-      { value: 'spin', label: 'Spin' }, { value: 'zoom', label: 'Zoom' },
+      { value: 'spin', label: t('Spin') }, { value: 'zoom', label: t('Zoom') },
     ] },
     { key: 'quality', label: 'Quality', type: 'select', default: 'good', options: [
-      { value: 'draft', label: 'Draft' }, { value: 'good', label: 'Good' }, { value: 'best', label: 'Best' },
+      { value: 'draft', label: t('Draft') }, { value: 'good', label: t('Good') }, { value: 'best', label: t('Best') },
     ] },
     { key: 'centerX', label: 'Center X', type: 'slider', min: 0, max: 100, step: 1, default: 50, unit: '%' },
     { key: 'centerY', label: 'Center Y', type: 'slider', min: 0, max: 100, step: 1, default: 50, unit: '%' },
@@ -952,12 +953,12 @@ registerFilter({
     { key: 'radius', label: 'Radius', type: 'slider', min: 0.1, max: 100, step: 0.1, default: 5 },
     { key: 'threshold', label: 'Threshold', type: 'slider', min: 0.1, max: 100, step: 0.1, default: 25 },
     { key: 'quality', label: 'Quality', type: 'select', default: 'medium', options: [
-      { value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' },
+      { value: 'low', label: t('Low') }, { value: 'medium', label: t('Medium') }, { value: 'high', label: t('High') },
     ] },
     { key: 'mode', label: 'Mode', type: 'select', default: 'normal', options: [
-      { value: 'normal', label: 'Normal' },
-      { value: 'edge-only', label: 'Edge Only' },
-      { value: 'overlay-edge', label: 'Overlay Edge' },
+      { value: 'normal', label: t('Normal') },
+      { value: 'edge-only', label: t('Edge Only') },
+      { value: 'overlay-edge', label: t('Overlay Edge') },
     ] },
   ],
   apply(imageData, p) {
@@ -1012,10 +1013,10 @@ registerFilter({
   params: [
     { key: 'radius', label: 'Radius', type: 'slider', min: 1, max: 500, step: 1, default: 20, unit: 'px' },
     { key: 'shape', label: 'Shape', type: 'select', default: 'circle', options: [
-      { value: 'circle', label: 'Circle' },
-      { value: 'square', label: 'Square' },
-      { value: 'star', label: 'Star' },
-      { value: 'cross', label: 'Cross' },
+      { value: 'circle', label: t('Circle') },
+      { value: 'square', label: t('Square') },
+      { value: 'star', label: t('Star') },
+      { value: 'cross', label: t('Cross') },
     ] },
   ],
   apply(imageData, p) {

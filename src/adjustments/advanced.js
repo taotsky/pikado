@@ -1,3 +1,4 @@
+import { t as translate } from '../i18n.js';
 import './advanced.css';
 import { registerAdjustment, buildLUT, applyLUT } from './registry.js';
 import { el, clamp, clamp255, createCanvas, ctx2dRead } from '../core/util.js';
@@ -261,7 +262,7 @@ const SC_INKS = [
 ];
 
 const scParams = [
-  { key: 'color', label: 'Colors', type: 'select', default: 'reds', options: SC_GROUPS.map((g) => ({ value: g.id, label: g.label })) },
+  { key: 'color', label: 'Colors', type: 'select', default: 'reds', options: SC_GROUPS.map((g) => ({ value: g.id, label: translate(g.label) })) },
 ];
 for (const g of SC_GROUPS) {
   for (const ink of SC_INKS) {
@@ -275,7 +276,7 @@ for (const g of SC_GROUPS) {
 scParams.push({ type: 'separator' });
 scParams.push({
   key: 'method', label: 'Method', type: 'radio', default: 'relative',
-  options: [{ value: 'relative', label: 'Relative' }, { value: 'absolute', label: 'Absolute' }],
+  options: [{ value: 'relative', label: translate('Relative') }, { value: 'absolute', label: translate('Absolute') }],
 });
 
 registerAdjustment({
@@ -552,7 +553,7 @@ function replaceMaskParam() {
     default: 0,
     render(container, state, onChange) {
       const W = 200, H = 120;
-      const canvas = el('canvas.pk-rc-thumb', { width: W, height: H, title: 'Click to sample a colour' });
+      const canvas = el('canvas.pk-rc-thumb', { width: W, height: H, title: translate('Click to sample a colour') });
       const ctx = setupHiDPI(canvas, W, H);
       container.appendChild(canvas);
 
@@ -584,7 +585,7 @@ function replaceMaskParam() {
         if (!source) {
           ctx.fillStyle = '#7a7a7a';
           ctx.font = '11px sans-serif';
-          ctx.fillText('No image', 8, 20);
+          ctx.fillText(translate('No image'), 8, 20);
           return;
         }
         const t = parseColor(state.targetColor || '#ff0000');
@@ -663,10 +664,10 @@ registerAdjustment({
 /* ================================================================== */
 
 const HDR_METHODS = [
-  { value: 'local', label: 'Local Adaptation' },
-  { value: 'highlight', label: 'Highlight Compression' },
-  { value: 'equalize', label: 'Equalize Histogram' },
-  { value: 'exposure', label: 'Exposure and Gamma' },
+  { value: 'local', label: translate('Local Adaptation') },
+  { value: 'highlight', label: translate('Highlight Compression') },
+  { value: 'equalize', label: translate('Equalize Histogram') },
+  { value: 'exposure', label: translate('Exposure and Gamma') },
 ];
 
 registerAdjustment({

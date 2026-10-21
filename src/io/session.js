@@ -1,4 +1,5 @@
 import { app } from '../core/app.js';
+import { t } from '../i18n.js';
 import { Emitter } from '../core/emitter.js';
 import { createCanvas } from '../core/util.js';
 import { getComposite } from '../render/compositor.js';
@@ -138,7 +139,7 @@ async function saveDocument(doc, opts = {}) {
     const [data, thumb] = await Promise.all([savePKD(doc), makeThumb(doc)]);
     if (data.size > DOC_LIMIT_BYTES) {
       state.error = 'too-large';
-      app.toast(`"${doc.name}" is too large to keep locally, so it will not be restored after a refresh.`, 'warn', 6000);
+      app.toast(t('"{name}" is too large to keep locally, so it will not be restored after a refresh.', { name: doc.name }), 'warn', 6000);
       return false;
     }
     await putDoc({

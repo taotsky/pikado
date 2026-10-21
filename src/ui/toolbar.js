@@ -1,4 +1,5 @@
 import { el } from '../core/util.js';
+import { t as translate } from '../i18n.js';
 import { app } from '../core/app.js';
 import { icon } from './icons.js';
 import { toolGroups, getTool } from '../tools/base.js';
@@ -154,7 +155,7 @@ function openFlyout(group, btn) {
       },
     },
       el('span.pk-flyout-ico', { html: icon(tool.icon || tool.id, { size: 16 }) }),
-      el('span.pk-flyout-name', { text: tool.name }),
+      el('span.pk-flyout-name', { text: translate(tool.name) }),
       tool.shortcut ? el('span.pk-flyout-key', { text: tool.shortcut.toUpperCase() }) : null
     );
     if (app.tool && app.tool.id === tool.id) item.classList.add('active');
@@ -192,7 +193,7 @@ function showTooltip(anchor, tool) {
   if (flyout) return;
   hideTooltip();
   tooltip = el('div.pk-tooltip', {},
-    el('span', { text: tool.name }),
+    el('span', { text: translate(tool.name) }),
     tool.shortcut ? el('span.pk-tooltip-key', { text: tool.shortcut.toUpperCase() }) : null
   );
   document.body.appendChild(tooltip);
@@ -223,24 +224,24 @@ function buildColorWell() {
   bgFill = el('span.pk-swatch-fill');
 
   const bg = el('button.pk-swatch.pk-swatch-bg.pk-checker', {
-    type: 'button', title: 'Background Color',
+    type: 'button', title: translate('Background Color'),
     onclick: () => pickColor('bg'),
   }, bgFill);
 
   const fg = el('button.pk-swatch.pk-swatch-fg.pk-checker', {
-    type: 'button', title: 'Foreground Color',
+    type: 'button', title: translate('Foreground Color'),
     onclick: () => pickColor('fg'),
   }, fgFill);
 
   const swap = el('button.pk-swatch-swap', {
-    type: 'button', title: 'Swap Colors (X)',
+    type: 'button', title: translate('Swap Colors (X)'),
     html: '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">' +
       '<path d="M3.5 6.5V3.5h6M3.5 6.5 5.5 4.5M3.5 6.5 1.5 4.5M12.5 9.5v3h-6M12.5 9.5l-2 2M12.5 9.5l2 2"/></svg>',
     onclick: () => app.swapColors(),
   });
 
   const defaults = el('button.pk-swatch-default', {
-    type: 'button', title: 'Default Foreground and Background (D)',
+    type: 'button', title: translate('Default Foreground and Background (D)'),
     onclick: () => app.resetColors(),
   }, el('span.pk-swatch-default-bg'), el('span.pk-swatch-default-fg'));
 
@@ -265,7 +266,7 @@ async function pickColor(which) {
     if (typeof show !== 'function') throw new Error('showColorPicker is not exported');
     const res = await show({
       color: isFg ? app.foreground : app.background,
-      title: isFg ? 'Foreground Color' : 'Background Color',
+      title: translate(isFg ? 'Foreground Color' : 'Background Color'),
       onChange: apply,
     });
     if (res) apply(res.color !== undefined ? res.color : res);
@@ -285,7 +286,7 @@ let screenBtn = null;
 function buildExtras() {
   quickMaskBtn = el('button.pk-tool.pk-tool-extra', {
     type: 'button',
-    title: 'Edit in Quick Mask Mode (Q)',
+    title: translate('Edit in Quick Mask Mode (Q)'),
     html: icon('mask', { size: 18 }),
     onclick: () => { toggleQuickMask(); syncQuickMask(); },
   });
@@ -303,12 +304,12 @@ function syncQuickMask() {
   if (!quickMaskBtn) return;
   const on = !!(app.activeDoc && app.activeDoc.quickMask);
   quickMaskBtn.classList.toggle('active', on);
-  quickMaskBtn.title = on ? 'Edit in Standard Mode (Q)' : 'Edit in Quick Mask Mode (Q)';
+  quickMaskBtn.title = translate(on ? 'Edit in Standard Mode (Q)' : 'Edit in Quick Mask Mode (Q)');
 }
 
 function syncScreenMode() {
   if (!screenBtn) return;
   const mode = getScreenMode();
   screenBtn.classList.toggle('active', mode !== 'standard');
-  screenBtn.title = `${screenModeLabel(mode)} (F)`;
+  screenBtn.title = `${translate(screenModeLabel(mode))} (F)`;
 }

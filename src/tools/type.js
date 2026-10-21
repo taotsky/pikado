@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 /**
  * The type tools: horizontal type, vertical type and the type mask.
  *
@@ -31,25 +32,25 @@ import {
 import './type.css';
 
 const ANTIALIAS_OPTIONS = [
-  { value: 'none', label: 'None' },
-  { value: 'sharp', label: 'Sharp' },
-  { value: 'crisp', label: 'Crisp' },
-  { value: 'strong', label: 'Strong' },
-  { value: 'smooth', label: 'Smooth' },
+  { value: 'none', label: t('None') },
+  { value: 'sharp', label: t('Sharp') },
+  { value: 'crisp', label: t('Crisp') },
+  { value: 'strong', label: t('Strong') },
+  { value: 'smooth', label: t('Smooth') },
 ];
 
 const ALIGN_OPTIONS = [
-  { value: 'left', label: 'Left' },
-  { value: 'center', label: 'Center' },
-  { value: 'right', label: 'Right' },
-  { value: 'justify', label: 'Justify' },
+  { value: 'left', label: t('Left') },
+  { value: 'center', label: t('Center') },
+  { value: 'right', label: t('Right') },
+  { value: 'justify', label: t('Justify') },
 ];
 
 const SELECTION_MODES = [
-  { value: 'replace', label: 'New' },
-  { value: 'add', label: 'Add' },
-  { value: 'subtract', label: 'Subtract' },
-  { value: 'intersect', label: 'Intersect' },
+  { value: 'replace', label: t('New') },
+  { value: 'add', label: t('Add') },
+  { value: 'subtract', label: t('Subtract') },
+  { value: 'intersect', label: t('Intersect') },
 ];
 
 function cssColor(c) {
@@ -381,11 +382,11 @@ async function openWarpDialog() {
 
   const notNone = (s) => s.style !== 'none';
   const result = await paramDialog({
-    title: 'Warp Text',
+    title: t('Warp Text'),
     width: 360,
     state,
     params: [
-      { key: 'style', label: 'Style', type: 'select', options: WARP_STYLES },
+      { key: 'style', label: 'Style', type: 'select', options: WARP_STYLES.map((option) => ({ ...option, label: t(option.label) })) },
       { key: 'bend', label: 'Bend', type: 'slider', min: -100, max: 100, step: 1, unit: '%', when: notNone },
       { key: 'h', label: 'Horizontal Distortion', type: 'slider', min: -100, max: 100, step: 1, unit: '%', when: notNone },
       { key: 'v', label: 'Vertical Distortion', type: 'slider', min: -100, max: 100, step: 1, unit: '%', when: notNone },
@@ -474,7 +475,7 @@ class TypeToolBase extends Tool {
         { key: 'italic', label: 'Italic', type: 'checkbox', default: false },
         { key: 'color', label: 'Color', type: 'color', default: '#000000' },
         { key: 'align', label: 'Align', type: 'radio', options: ALIGN_OPTIONS, default: 'left' },
-        { key: 'lineHeight', label: 'Leading', type: 'number', min: 0, max: 20, step: 0.05, default: 1.2, hint: 'Multiple of the type size (0 = automatic)' },
+        { key: 'lineHeight', label: 'Leading', type: 'number', min: 0, max: 20, step: 0.05, default: 1.2, hint: t('Multiple of the type size (0 = automatic)') },
         { key: 'letterSpacing', label: 'Tracking', type: 'number', min: -200, max: 400, step: 0.5, default: 0, unit: 'px' },
         { key: 'underline', label: 'Underline', type: 'checkbox', default: false },
         { key: 'antialias', label: 'Anti-alias', type: 'select', options: ANTIALIAS_OPTIONS, default: 'smooth' },

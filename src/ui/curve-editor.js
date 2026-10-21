@@ -1,3 +1,4 @@
+import { t as translateUI } from '../i18n.js';
 import './curve-editor.css';
 import { el, clamp } from '../core/util.js';
 import { sampleLUT } from '../adjustments/registry.js';
@@ -16,16 +17,16 @@ import { drawHistogram, setupHiDPI, currentHistogram, emptyHistogram } from './h
  */
 
 export const CURVE_CHANNELS = [
-  { id: 'rgb', label: 'RGB', color: 'accent' },
-  { id: 'r', label: 'Red', color: '#ff5d5d' },
-  { id: 'g', label: 'Green', color: '#54d954' },
-  { id: 'b', label: 'Blue', color: '#6ea8ff' },
+  { id: 'rgb', label: translateUI('RGB'), color: 'accent' },
+  { id: 'r', label: translateUI('Red'), color: '#ff5d5d' },
+  { id: 'g', label: translateUI('Green'), color: '#54d954' },
+  { id: 'b', label: translateUI('Blue'), color: '#6ea8ff' },
 ];
 
 /**
  * Read a design token so the painted plot matches the stylesheet instead of
- * carrying its own hardcoded palette. Cached: the tokens never change at
- * runtime, and `draw()` runs on every pointer move.
+ * carrying its own hardcoded palette. Cache until the next theme change,
+ * since `draw()` runs on every pointer move.
  */
 const tokenCache = new Map();
 function token(name, fallback) {
@@ -305,7 +306,7 @@ function buildCurveEditor(container, cfg) {
   });
 
   const presetSelect = el('select.pk-select.pk-curve-preset');
-  for (const name of Object.keys(CURVE_PRESETS)) presetSelect.appendChild(el('option', { value: name, text: name }));
+  for (const name of Object.keys(CURVE_PRESETS)) presetSelect.appendChild(el('option', { value: name, text: translateUI(name) }));
   presetSelect.addEventListener('change', () => {
     const next = curvesFromPreset(presetSelect.value);
     next.channel = value.channel;
@@ -313,8 +314,8 @@ function buildCurveEditor(container, cfg) {
   });
 
   const resetBtn = el('button.pk-btn.subtle.pk-curve-reset', {
-    type: 'button', text: 'Reset',
-    title: 'Reset the current channel to a straight line',
+    type: 'button', text: translateUI('Reset'),
+    title: translateUI('Reset the current channel to a straight line'),
     onclick: () => {
       const next = cloneValue(value);
       next[next.channel] = clonePoints(IDENTITY);
@@ -325,11 +326,11 @@ function buildCurveEditor(container, cfg) {
 
   const canvas = el('canvas.pk-curve-canvas', { width: W, height: W });
   const ctx = setupHiDPI(canvas, W, W);
-  const readout = el('div.pk-curve-readout', { text: 'Input: —   Output: —' });
+  const readout = el('div.pk-curve-readout', { text: translateUI('Input: —   Output: —') });
 
   const head = el('div.pk-curve-head', {},
-    el('span.pk-curve-lbl', { text: 'Channel' }), chanSelect,
-    showPresets ? el('span.pk-curve-lbl', { text: 'Preset' }) : null,
+    el('span.pk-curve-lbl', { text: translateUI('Channel') }), chanSelect,
+    showPresets ? el('span.pk-curve-lbl', { text: translateUI('Preset') }) : null,
     showPresets ? presetSelect : null
   );
   const foot = el('div.pk-curve-foot', {}, readout, el('div.pk-spacer'), resetBtn);
@@ -387,7 +388,7 @@ function buildCurveEditor(container, cfg) {
     });
 
     // Grid — a faint hairline, matching --hair.
-    ctx.strokeStyle = 'rgba(255,255,255,.07)';
+    ctx.strokeStyle = token('--hair', 'rgba(255,255,255,.07)');
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let i = 1; i < 4; i++) {
@@ -400,7 +401,7 @@ function buildCurveEditor(container, cfg) {
     ctx.stroke();
 
     // Baseline.
-    ctx.strokeStyle = 'rgba(255,255,255,.16)';
+    ctx.strokeStyle = token('--hair-3', 'rgba(255,255,255,.16)');
     ctx.setLineDash([3, 3]);
     ctx.beginPath();
     ctx.moveTo(PAD, PAD + size);
@@ -414,7 +415,7 @@ function buildCurveEditor(container, cfg) {
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(PAD + 0.5, PAD + 0.5, size - 1, size - 1, R - 0.5);
     else ctx.rect(PAD + 0.5, PAD + 0.5, size - 1, size - 1);
-    ctx.strokeStyle = 'rgba(255,255,255,.11)';
+    ctx.strokeStyle = token('--hair-2', 'rgba(255,255,255,.11)');
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.restore();
@@ -475,7 +476,7 @@ function buildCurveEditor(container, cfg) {
   const setReadout = (px, py) => {
     const v = toVal(px, py);
     const lut = curveToLUT(value[value.channel]);
-    readout.textContent = `Input: ${v.x}   Output: ${lut[v.x]}`;
+    readout.textContent = translateUI('Input: {input}   Output: {output}', { input: v.x, output: lut[v.x] });
   };
 
   canvas.addEventListener('pointerdown', (e) => {
@@ -600,6 +601,7 @@ function buildCurveEditor(container, cfg) {
     },
   };
 
+  canvas.addEventListener('theme-change', () => { tokenCache.clear(); draw(); });
   draw();
   return api;
 }

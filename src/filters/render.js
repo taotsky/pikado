@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { registerFilter } from './registry.js';
 import { app } from '../core/app.js';
 import { createCanvas, getImageData, clamp, clamp255, deg2rad, lerp } from '../core/util.js';
@@ -360,10 +361,10 @@ registerFilter({
     {
       key: 'lensType', label: 'Lens Type', type: 'select', default: '50-300',
       options: [
-        { value: '50-300', label: '50-300mm Zoom' },
-        { value: '35', label: '35mm Prime' },
-        { value: '105', label: '105mm Prime' },
-        { value: 'movie', label: 'Movie Prime' },
+        { value: '50-300', label: t('50-300mm Zoom') },
+        { value: '35', label: t('35mm Prime') },
+        { value: '105', label: t('105mm Prime') },
+        { value: 'movie', label: t('Movie Prime') },
       ],
     },
     { key: 'centerX', label: 'Flare Center X', type: 'slider', min: 0, max: 100, step: 0.5, default: 35, unit: '%' },
@@ -401,9 +402,9 @@ registerFilter({
     {
       key: 'lightType', label: 'Light Type', type: 'select', default: 'spot',
       options: [
-        { value: 'spot', label: 'Spot' },
-        { value: 'omni', label: 'Omni' },
-        { value: 'directional', label: 'Directional' },
+        { value: 'spot', label: t('Spot') },
+        { value: 'omni', label: t('Omni') },
+        { value: 'directional', label: t('Directional') },
       ],
     },
     { key: 'color', label: 'Light Color', type: 'color', default: '#ffffff' },

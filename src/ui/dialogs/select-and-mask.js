@@ -1,3 +1,4 @@
+import { t } from '../../i18n.js';
 import './dialogs.css';
 import './select-and-mask.css';
 import { el, createCanvas, ctx2d, ctx2dRead } from '../../core/util.js';
@@ -40,28 +41,28 @@ const WORK_PIXELS = 260000;
 
 /** How the preview shows the selection. */
 const VIEW_MODES = [
-  { value: 'onion', label: 'Onion Skin', hint: 'Unselected areas fade out' },
-  { value: 'ants', label: 'Marching Ants', hint: 'The classic dashed outline' },
-  { value: 'overlay', label: 'Overlay', hint: 'Unselected areas tinted, like Quick Mask' },
-  { value: 'black', label: 'On Black', hint: 'The selection over black' },
-  { value: 'white', label: 'On White', hint: 'The selection over white' },
-  { value: 'mask', label: 'Black & White', hint: 'The mask itself' },
-  { value: 'layers', label: 'On Layers', hint: 'The selection over the layers below' },
+  { value: 'onion', label: t('Onion Skin'), hint: t('Unselected areas fade out') },
+  { value: 'ants', label: t('Marching Ants'), hint: t('The classic dashed outline') },
+  { value: 'overlay', label: t('Overlay'), hint: t('Unselected areas tinted, like Quick Mask') },
+  { value: 'black', label: t('On Black'), hint: t('The selection over black') },
+  { value: 'white', label: t('On White'), hint: t('The selection over white') },
+  { value: 'mask', label: t('Black & White'), hint: t('The mask itself') },
+  { value: 'layers', label: t('On Layers'), hint: t('The selection over the layers below') },
 ];
 
 /** Where the result goes when the workspace closes. */
 const OUTPUTS = [
-  { value: 'selection', label: 'Selection' },
-  { value: 'mask', label: 'Layer Mask' },
-  { value: 'layer', label: 'New Layer' },
-  { value: 'layer-mask', label: 'New Layer with Layer Mask' },
-  { value: 'document', label: 'New Document' },
+  { value: 'selection', label: t('Selection') },
+  { value: 'mask', label: t('Layer Mask') },
+  { value: 'layer', label: t('New Layer') },
+  { value: 'layer-mask', label: t('New Layer with Layer Mask') },
+  { value: 'document', label: t('New Document') },
 ];
 
 const TOOLS = [
-  { value: 'brush', label: 'Brush', hint: 'Paint subject; hold Alt to paint background' },
-  { value: 'refine', label: 'Refine Edge', hint: 'Hand the boundary back to the matting pass' },
-  { value: 'lasso', label: 'Lasso', hint: 'Enclose an area to mark it' },
+  { value: 'brush', label: t('Brush'), hint: t('Paint subject; hold Alt to paint background') },
+  { value: 'refine', label: t('Refine Edge'), hint: t('Hand the boundary back to the matting pass') },
+  { value: 'lasso', label: t('Lasso'), hint: t('Enclose an area to mark it') },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -378,7 +379,7 @@ export async function showSelectAndMask(doc, opts = {}) {
     let selected = 0;
     for (let i = 0; i < finalMask.length; i++) selected += finalMask[i];
     const pct = (selected / (finalMask.length * 255)) * 100;
-    status.textContent = `${pct.toFixed(1)}% selected · cut at ${work.w}×${work.h}, refined at ${W}×${H}`;
+    status.textContent = t('{percent}% selected · cut at {workWidth}×{workHeight}, refined at {width}×{height}', { percent: pct.toFixed(1), workWidth: work.w, workHeight: work.h, width: W, height: H });
   }
 
   /** Marching ants, traced from the mask's own contour loops. */
@@ -547,27 +548,27 @@ export async function showSelectAndMask(doc, opts = {}) {
   /* --- controls -------------------------------------------------------- */
 
   const params = [
-    { key: 'view', label: 'View', type: 'select', options: VIEW_MODES },
-    { key: 'opacity', label: 'Opacity', type: 'slider', min: 0, max: 100, unit: '%',
+    { key: 'view', label: t('View'), type: 'select', options: VIEW_MODES },
+    { key: 'opacity', label: t('Opacity'), type: 'slider', min: 0, max: 100, unit: '%',
       when: (s) => s.view === 'onion' || s.view === 'overlay' },
     { type: 'separator' },
-    { key: 'tool', label: 'Tool', type: 'radio', options: TOOLS },
-    { key: 'brushSize', label: 'Brush Size', type: 'slider', min: 1, max: Math.max(40, Math.round(Math.min(W, H) / 2)), unit: 'px' },
+    { key: 'tool', label: t('Tool'), type: 'radio', options: TOOLS },
+    { key: 'brushSize', label: t('Brush Size'), type: 'slider', min: 1, max: Math.max(40, Math.round(Math.min(W, H) / 2)), unit: 'px' },
     { type: 'separator' },
-    { type: 'label', label: 'Edge Detection' },
-    { key: 'radius', label: 'Radius', type: 'slider', min: 0, max: 100, unit: 'px' },
-    { key: 'smart', label: 'Smart Radius', type: 'checkbox' },
-    { type: 'label', label: 'Global Refinements' },
-    { key: 'smooth', label: 'Smooth', type: 'slider', min: 0, max: 20 },
-    { key: 'feather', label: 'Feather', type: 'slider', min: 0, max: 50, unit: 'px' },
-    { key: 'contrast', label: 'Contrast', type: 'slider', min: 0, max: 100, unit: '%' },
-    { key: 'shift', label: 'Shift Edge', type: 'slider', min: -100, max: 100, unit: '%' },
+    { type: 'label', label: t('Edge Detection') },
+    { key: 'radius', label: t('Radius'), type: 'slider', min: 0, max: 100, unit: 'px' },
+    { key: 'smart', label: t('Smart Radius'), type: 'checkbox' },
+    { type: 'label', label: t('Global Refinements') },
+    { key: 'smooth', label: t('Smooth'), type: 'slider', min: 0, max: 20 },
+    { key: 'feather', label: t('Feather'), type: 'slider', min: 0, max: 50, unit: 'px' },
+    { key: 'contrast', label: t('Contrast'), type: 'slider', min: 0, max: 100, unit: '%' },
+    { key: 'shift', label: t('Shift Edge'), type: 'slider', min: -100, max: 100, unit: '%' },
     { type: 'separator' },
-    { type: 'label', label: 'Output Settings' },
-    { key: 'decontaminate', label: 'Decontaminate Colors', type: 'checkbox' },
-    { key: 'decontaminateAmount', label: 'Amount', type: 'slider', min: 0, max: 100, unit: '%',
+    { type: 'label', label: t('Output Settings') },
+    { key: 'decontaminate', label: t('Decontaminate Colors'), type: 'checkbox' },
+    { key: 'decontaminateAmount', label: t('Amount'), type: 'slider', min: 0, max: 100, unit: '%',
       when: (s) => s.decontaminate },
-    { key: 'output', label: 'Output To', type: 'select', options: OUTPUTS },
+    { key: 'output', label: t('Output To'), type: 'select', options: OUTPUTS },
   ];
 
   let form = null;
@@ -585,7 +586,7 @@ export async function showSelectAndMask(doc, opts = {}) {
 
   /* --- assembly -------------------------------------------------------- */
 
-  const dialog = new Dialog({ title: 'Select and Mask', width: 980, className: 'pk-sam' });
+  const dialog = new Dialog({ title: t('Select and Mask'), width: 980, className: 'pk-sam' });
   form = buildForm(params, state, onChange);
 
   /** Saliency guess -> cut -> adopt as the seed. Shared by the button and open. */
@@ -597,18 +598,18 @@ export async function showSelectAndMask(doc, opts = {}) {
     cutMask = res.mask;
     cutPending = false;
     adoptAsSeed(cutMask);
-    if (!guess.confident) app.toast('No obvious subject — paint a few strokes to guide it.', 'info');
+    if (!guess.confident) app.toast(t('No obvious subject — paint a few strokes to guide it.'), 'info');
     runRefine();
   }
 
   const actions = el('div.pk-sam-actions', {},
     el('button.pk-btn.subtle', {
-      text: 'Select Subject',
-      title: 'Guess the subject with saliency plus a graph cut — no model, so no magic',
+      text: t('Select Subject'),
+      title: t('Guess the subject with saliency plus a graph cut — no model, so no magic'),
       onclick: () => { selectSubject(); draw(); },
     }),
     el('button.pk-btn.subtle', {
-      text: 'Reset',
+      text: t('Reset'),
       onclick: () => {
         strokes.fill(0xff);
         refineBand.fill(0);
@@ -629,9 +630,9 @@ export async function showSelectAndMask(doc, opts = {}) {
 
   let applied = false;
   dialog.setButtons([
-    { label: 'Cancel', value: false, subtle: true },
+    { label: t('Cancel'), value: false, subtle: true },
     {
-      label: 'OK',
+      label: t('OK'),
       primary: true,
       onClick: () => { applied = true; return true; },
       value: true,

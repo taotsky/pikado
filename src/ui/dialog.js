@@ -1,4 +1,5 @@
 import { el } from '../core/util.js';
+import { t } from '../i18n.js';
 import { toHex, parseColor } from '../core/color.js';
 import { OVERLAY } from './brand.js';
 
@@ -37,8 +38,8 @@ export class Dialog {
     this.overlay = el('div.pk-dialog-overlay');
     this.root = el('div.pk-dialog' + (className ? `.${className}` : ''), { style: { width: `${width}px` } });
     this.header = el('div.pk-dialog-header', {},
-      el('span.pk-dialog-title', { text: title }),
-      el('button.pk-dialog-close', { title: 'Close', onclick: () => this.close(null) }, '×')
+      el('span.pk-dialog-title', { text: t(title) }),
+      el('button.pk-dialog-close', { title: t('Close'), onclick: () => this.close(null) }, '×')
     );
     this.body = el('div.pk-dialog-body');
     this.footer = el('div.pk-dialog-footer');
@@ -94,7 +95,7 @@ export class Dialog {
     this.footer.replaceChildren(
       ...buttons.map((b) =>
         el('button.pk-btn' + (b.primary ? '.primary' : '') + (b.subtle ? '.subtle' : '') + (b.danger ? '.danger' : ''), {
-          text: b.label,
+          text: t(b.label),
           onclick: () => {
             if (b.onClick && b.onClick(this) === false) return;
             if (b.value !== undefined) this.close(b.value);
@@ -152,7 +153,7 @@ export class Dialog {
 export function alertDialog(message, title = 'Pikado') {
   const d = new Dialog({ title, width: 340 });
   d.setBody(el('p.pk-msg', { text: message }));
-  d.setButtons([{ label: 'OK', value: true, primary: true }]);
+  d.setButtons([{ label: t('OK'), value: true, primary: true }]);
   return d.open();
 }
 
@@ -172,7 +173,7 @@ export function confirmDialog(message, title = 'Pikado', okLabel = 'OK', opts = 
   const d = new Dialog({ title, width: 360 });
   d.setBody(el('p.pk-msg', { text: message }));
   d.setButtons([
-    { label: 'Cancel', value: false, subtle: true },
+    { label: t('Cancel'), value: false, subtle: true },
     { label: okLabel, value: true, primary: !opts.danger, danger: !!opts.danger },
   ]);
   return d.open();
@@ -183,8 +184,8 @@ export function promptDialog(message, initial = '', title = 'Pikado') {
   const input = el('input.pk-input', { type: 'text', value: initial });
   d.setBody(el('div.pk-field', {}, el('label', { text: message }), input));
   d.setButtons([
-    { label: 'Cancel', value: null, subtle: true },
-    { label: 'OK', primary: true, onClick: (dlg) => { dlg.close(input.value); return false; } },
+    { label: t('Cancel'), value: null, subtle: true },
+    { label: t('OK'), primary: true, onClick: (dlg) => { dlg.close(input.value); return false; } },
   ]);
   const p = d.open();
   requestAnimationFrame(() => { input.focus(); input.select(); });
@@ -218,14 +219,14 @@ export function paramDialog({ title, params, state, width = 400, onPreview, onCo
         if (onPreview) onPreview(previewOn ? working : null);
       },
     }),
-    el('span', { text: 'Preview' })
+    el('span', { text: t('Preview') })
   );
 
   d.setBody(form.node);
   d.setButtons([
     ...(preview ? [] : []),
-    { label: 'Cancel', value: null, subtle: true },
-    { label: 'OK', primary: true, onClick: (dlg) => { dlg.close({ ...working }); return false; } },
+    { label: t('Cancel'), value: null, subtle: true },
+    { label: t('OK'), primary: true, onClick: (dlg) => { dlg.close({ ...working }); return false; } },
     ...extraButtons,
   ]);
   if (preview) d.footer.prepend(previewToggle);
@@ -279,10 +280,10 @@ function buildControl(p, state, onChange, controls) {
   const change = (v) => onChange(p.key, v);
 
   if (p.type === 'separator') return el('hr.pk-sep');
-  if (p.type === 'label') return el('div.pk-form-label', { text: p.label, class: p.className || '' });
+  if (p.type === 'label') return el('div.pk-form-label', { text: t(p.label), class: p.className || '' });
   if (p.type === 'custom') {
     const holder = el('div.pk-field.pk-custom');
-    if (p.label) holder.appendChild(el('label', { text: p.label }));
+    if (p.label) holder.appendChild(el('label', { text: t(p.label) }));
     const inner = el('div.pk-custom-body');
     holder.appendChild(inner);
     if (p.render) {
@@ -292,11 +293,11 @@ function buildControl(p, state, onChange, controls) {
     return holder;
   }
   if (p.type === 'button') {
-    return el('div.pk-field', {}, el('button.pk-btn.subtle', { text: p.label, onclick: () => p.onClick && p.onClick(state, onChange) }));
+    return el('div.pk-field', {}, el('button.pk-btn.subtle', { text: t(p.label), onclick: () => p.onClick && p.onClick(state, onChange) }));
   }
 
   const row = el('div.pk-field' + (p.type === 'checkbox' ? '.inline' : ''));
-  if (p.label && p.type !== 'checkbox') row.appendChild(el('label', { text: p.label, for: `pk_${p.key}` }));
+  if (p.label && p.type !== 'checkbox') row.appendChild(el('label', { text: t(p.label), for: `pk_${p.key}` }));
 
   switch (p.type) {
     case 'slider': {
@@ -397,7 +398,7 @@ function buildControl(p, state, onChange, controls) {
     case 'checkbox': {
       const input = el('input', { type: 'checkbox', id: `pk_${p.key}`, checked: !!state[p.key] });
       input.addEventListener('change', () => change(input.checked));
-      row.appendChild(el('label.pk-check', {}, input, el('span', { text: p.label })));
+      row.appendChild(el('label.pk-check', {}, input, el('span', { text: t(p.label) })));
       controls.set(p.key, { sync: (v) => { input.checked = !!v; } });
       break;
     }
@@ -419,14 +420,15 @@ function buildControl(p, state, onChange, controls) {
       const draw = (deg) => {
         const c = dial.getContext('2d');
         c.clearRect(0, 0, 46, 46);
-        c.strokeStyle = 'rgba(255,255,255,.28)';
+        c.strokeStyle = getComputedStyle(dial).getPropertyValue('--hair-3').trim() || 'rgba(255,255,255,.28)';
         c.lineWidth = 1;
         c.beginPath(); c.arc(23, 23, 19, 0, Math.PI * 2); c.stroke();
         const r = (-deg * Math.PI) / 180;
-        c.strokeStyle = OVERLAY.accentHi;
+        c.strokeStyle = getComputedStyle(dial).getPropertyValue('--accent-hi').trim() || OVERLAY.accentHi;
         c.lineWidth = 2;
         c.beginPath(); c.moveTo(23, 23); c.lineTo(23 + Math.cos(r) * 17, 23 + Math.sin(r) * 17); c.stroke();
       };
+      dial.addEventListener('theme-change', () => draw(state[p.key]));
       const setFromEvent = (e) => {
         const r = dial.getBoundingClientRect();
         const dx = e.clientX - (r.left + r.width / 2);
@@ -450,7 +452,7 @@ function buildControl(p, state, onChange, controls) {
       return null;
   }
 
-  if (p.hint) row.appendChild(el('div.pk-hint', { text: p.hint }));
+  if (p.hint) row.appendChild(el('div.pk-hint', { text: t(p.hint) }));
   return row;
 }
 

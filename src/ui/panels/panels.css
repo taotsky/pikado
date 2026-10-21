@@ -80,7 +80,7 @@
   overflow: hidden;
   transition: color .12s ease, background .12s ease;
 }
-.pk-ptab:hover { color: var(--text-hi); background: rgba(255, 255, 255, .04); }
+.pk-ptab:hover { color: var(--text-hi); background: rgba(var(--ui-ink), .04); }
 .pk-ptab.active { color: var(--text-hi); font-weight: 500; }
 .pk-ptab.active::after {
   content: '';
@@ -179,7 +179,7 @@
   height: 2px;
   margin: -1px 0 0 -14px;
   border-radius: var(--r-full);
-  background: rgba(255, 255, 255, .09);
+  background: rgba(var(--ui-ink), .09);
   transition: background .12s ease, width .12s ease;
 }
 .pk-pdivider:hover::after { background: var(--hair-3); width: 40px; margin-left: -20px; }
@@ -291,7 +291,7 @@
   gap: 2px;
   height: 33px;
   padding: 0 6px;
-  background: rgba(255, 255, 255, .022);
+  background: rgba(var(--ui-ink), .022);
   border-top: 1px solid var(--hair);
 }
 .pk-panel-foot .pk-spacer { flex: 1 1 auto; }
@@ -447,7 +447,7 @@ input.pk-range-mini { height: 16px; min-width: 40px; }
 /* Selection: a tinted chip with a small solid marker, not a colour block. The
    active layer is the same chip a shade further up, so a multi-selection still
    shows which row the tools will act on. */
-.pk-lay-row.selected > .pk-lay-main { background: rgba(255, 255, 255, .05); }
+.pk-lay-row.selected > .pk-lay-main { background: rgba(var(--ui-ink), .05); }
 .pk-lay-row.active > .pk-lay-main { background: var(--accent-dim); }
 .pk-lay-row.selected > .pk-lay-main::before,
 .pk-lay-row.active > .pk-lay-main::before {
@@ -527,7 +527,7 @@ input.pk-range-mini { height: 16px; min-width: 40px; }
   width: 36px; height: 36px;
   display: flex; align-items: center; justify-content: center;
   border-radius: var(--r-sm);
-  background: rgba(255, 255, 255, .045);
+  background: rgba(var(--ui-ink), .045);
   box-shadow: inset 0 0 0 1px var(--hair);
   color: var(--text-dim);
 }
@@ -604,7 +604,7 @@ input.pk-range-mini { height: 16px; min-width: 40px; }
   font-size: var(--fs-sm);
   transition: background .12s ease;
 }
-.pk-lay-fxrow:hover { background: rgba(255, 255, 255, .035); }
+.pk-lay-fxrow:hover { background: rgba(var(--ui-ink), .035); }
 .pk-lay-fxrow.head { color: var(--text); }
 .pk-lay-fxrow .pk-icon-btn { width: 19px; height: 19px; border-radius: var(--r-xs); }
 .pk-lay-fxrow .pk-icon-btn svg { width: 12px; height: 12px; }

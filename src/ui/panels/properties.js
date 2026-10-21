@@ -1,3 +1,4 @@
+import { t as translateUI } from '../../i18n.js';
 import './panels.css';
 import './smart.css';
 import { registerPanel } from '../panel-host.js';
@@ -28,26 +29,26 @@ import {
  */
 
 const ALIGNS = [
-  { value: 'left', label: 'Left' },
-  { value: 'center', label: 'Center' },
-  { value: 'right', label: 'Right' },
-  { value: 'justify', label: 'Justify' },
+  { value: 'left', label: translateUI('Left') },
+  { value: 'center', label: translateUI('Center') },
+  { value: 'right', label: translateUI('Right') },
+  { value: 'justify', label: translateUI('Justify') },
 ];
 
 /** Stroke dash presets understood by `dashArrayFor()` in vector/path.js. */
 const DASH_OPTIONS = [
-  { value: 'solid', label: 'Solid' },
-  { value: 'dash', label: 'Dashed' },
-  { value: 'dash-tight', label: 'Dashed (tight)' },
-  { value: 'dot', label: 'Dotted' },
-  { value: 'dash-dot', label: 'Dash-dot' },
-  { value: 'long-dash', label: 'Long dash' },
+  { value: 'solid', label: translateUI('Solid line') },
+  { value: 'dash', label: translateUI('Dashed') },
+  { value: 'dash-tight', label: translateUI('Dashed (tight)') },
+  { value: 'dot', label: translateUI('Dotted') },
+  { value: 'dash-dot', label: translateUI('Dash-dot') },
+  { value: 'long-dash', label: translateUI('Long dash') },
 ];
 
 const STROKE_ALIGNS = [
-  { value: 'inside', label: 'Inside' },
-  { value: 'center', label: 'Center' },
-  { value: 'outside', label: 'Outside' },
+  { value: 'inside', label: translateUI('Inside') },
+  { value: 'center', label: translateUI('Center') },
+  { value: 'outside', label: translateUI('Outside') },
 ];
 
 let textModPromise = null;
@@ -57,7 +58,7 @@ const shapeMod = () => (shapeModPromise || (shapeModPromise = import('../../vect
 
 registerPanel({
   id: 'properties',
-  title: 'Properties',
+  title: translateUI('Properties'),
   icon: 'properties',
   group: 'bottom',
   order: 0,
@@ -116,7 +117,7 @@ function buildPropertiesPanel(bodyEl) {
     root.replaceChildren();
 
     if (!doc) {
-      root.appendChild(el('div.pk-panel-empty', { text: 'No document open.' }));
+      root.appendChild(el('div.pk-panel-empty', { text: translateUI('No document open.') }));
       return;
     }
 
@@ -189,7 +190,7 @@ function headerFor(doc, layer, mode) {
   return el('div.pk-prop-head', {},
     el('span.pk-prop-ico', { html: icon(iconName, { size: 15 }) }),
     el('span.pk-prop-name', { text: title }),
-    el('span.pk-prop-kind', { text: kind })
+    el('span.pk-prop-kind', { text: translateUI(kind) })
   );
 }
 
@@ -277,7 +278,7 @@ function adjustmentSection(doc, layer) {
   const node = el('div.pk-panel-section');
 
   if (!def) {
-    node.appendChild(el('div.pk-panel-note', { text: `Unknown adjustment "${kind}".` }));
+    node.appendChild(el('div.pk-panel-note', { text: translateUI('Unknown adjustment "{kind}".', { kind }) }));
     return { node };
   }
 
@@ -295,7 +296,7 @@ function adjustmentSection(doc, layer) {
   node.appendChild(form.node);
   node.appendChild(el('div.pk-prop-actions', {},
     el('button.pk-mini-btn', {
-      type: 'button', text: 'Reset',
+      type: 'button', text: translateUI('Reset'),
       onclick: () => {
         Object.assign(state, defaultParams(kind));
         form.refresh();
@@ -303,11 +304,11 @@ function adjustmentSection(doc, layer) {
       },
     }),
     el('button.pk-mini-btn', {
-      type: 'button', text: layer.clipped ? 'Release Clip' : 'Clip to Layer',
+      type: 'button', text: translateUI(layer.clipped ? 'Release Clip' : 'Clip to Layer'),
       onclick: () => ops.toggleClipping(doc, layer),
     }),
     el('button.pk-mini-btn', {
-      type: 'button', text: 'Delete',
+      type: 'button', text: translateUI('Delete'),
       onclick: () => ops.deleteLayers(doc, [layer]),
     })
   ));
@@ -398,8 +399,8 @@ function maskSection(doc, layer) {
   });
 
   const form = buildForm([
-    { key: 'density', label: 'Density', type: 'slider', min: 0, max: 100, step: 1, unit: '%' },
-    { key: 'feather', label: 'Feather', type: 'slider', min: 0, max: 250, step: 1, unit: 'px' },
+    { key: 'density', label: translateUI('Density'), type: 'slider', min: 0, max: 100, step: 1, unit: '%' },
+    { key: 'feather', label: translateUI('Feather'), type: 'slider', min: 0, max: 250, step: 1, unit: 'px' },
   ], state, (key, value) => {
     state[key] = value;
     committer.bump();
@@ -411,12 +412,12 @@ function maskSection(doc, layer) {
 
   node.appendChild(form.node);
   node.appendChild(el('div.pk-panel-note', {
-    text: 'Density fades the mask toward fully revealed; Feather softens its edges. Both are baked into the mask pixels when you commit.',
+    text: translateUI('Density fades the mask toward fully revealed; Feather softens its edges. Both are baked into the mask pixels when you commit.'),
   }));
 
   node.appendChild(el('div.pk-prop-actions', {},
     el('button.pk-mini-btn', {
-      type: 'button', text: 'Invert',
+      type: 'button', text: translateUI('Invert'),
       onclick: () => {
         doc.beginEdit(layer);
         layer.maskInverted = !layer.maskInverted;
@@ -426,11 +427,11 @@ function maskSection(doc, layer) {
       },
     }),
     el('button.pk-mini-btn', {
-      type: 'button', text: layer.maskEnabled ? 'Disable' : 'Enable',
+      type: 'button', text: translateUI(layer.maskEnabled ? 'Disable' : 'Enable'),
       onclick: () => ops.toggleMaskEnabled(doc, layer),
     }),
-    el('button.pk-mini-btn', { type: 'button', text: 'Apply', onclick: () => ops.applyLayerMask(doc, layer) }),
-    el('button.pk-mini-btn', { type: 'button', text: 'Delete', onclick: () => ops.deleteLayerMask(doc, layer) })
+    el('button.pk-mini-btn', { type: 'button', text: translateUI('Apply'), onclick: () => ops.applyLayerMask(doc, layer) }),
+    el('button.pk-mini-btn', { type: 'button', text: translateUI('Delete'), onclick: () => ops.deleteLayerMask(doc, layer) })
   ));
 
   const off = commitOnRelease(node, committer);
@@ -533,15 +534,15 @@ function textSection(doc, layer) {
   };
 
   const form = buildForm([
-    { key: 'content', label: 'Text', type: 'textarea', rows: 3 },
-    { key: 'font', label: 'Font', type: 'select', options: families },
-    { key: 'weight', label: 'Weight', type: 'select', options: FONT_WEIGHTS },
-    { key: 'size', label: 'Size', type: 'slider', min: 4, max: 400, step: 1, unit: 'px' },
-    { key: 'color', label: 'Color', type: 'color' },
-    { key: 'align', label: 'Alignment', type: 'select', options: ALIGNS },
-    { key: 'leading', label: 'Leading', type: 'slider', min: 0, max: 500, step: 5, unit: '%', hint: '0 = automatic' },
-    { key: 'tracking', label: 'Tracking', type: 'slider', min: -50, max: 200, step: 0.5, unit: 'px' },
-    { key: 'italic', label: 'Italic', type: 'checkbox' },
+    { key: 'content', label: translateUI('Text'), type: 'textarea', rows: 3 },
+    { key: 'font', label: translateUI('Font'), type: 'select', options: families },
+    { key: 'weight', label: translateUI('Weight'), type: 'select', options: FONT_WEIGHTS.map((option) => ({ ...option, label: translateUI(option.label) })) },
+    { key: 'size', label: translateUI('Size'), type: 'slider', min: 4, max: 400, step: 1, unit: 'px' },
+    { key: 'color', label: translateUI('Color'), type: 'color' },
+    { key: 'align', label: translateUI('Alignment'), type: 'select', options: ALIGNS },
+    { key: 'leading', label: translateUI('Leading'), type: 'slider', min: 0, max: 500, step: 5, unit: '%', hint: translateUI('0 = automatic') },
+    { key: 'tracking', label: translateUI('Tracking'), type: 'slider', min: -50, max: 200, step: 0.5, unit: 'px' },
+    { key: 'italic', label: translateUI('Italic'), type: 'checkbox' },
   ], state, (key, value) => {
     state[key] = value;
     form.refresh();
@@ -551,7 +552,7 @@ function textSection(doc, layer) {
 
   node.appendChild(form.node);
   node.appendChild(el('div.pk-prop-actions', {},
-    el('button.pk-mini-btn', { type: 'button', text: 'Rasterize', onclick: () => ops.rasterizeLayer(doc, layer) })
+    el('button.pk-mini-btn', { type: 'button', text: translateUI('Rasterize'), onclick: () => ops.rasterizeLayer(doc, layer) })
   ));
 
   const off = commitOnRelease(node, committer);
@@ -690,14 +691,14 @@ function shapeSection(doc, layer) {
   };
 
   const form = buildForm([
-    { key: 'fillOn', label: 'Fill', type: 'checkbox' },
-    { key: 'fill', label: 'Fill color', type: 'color', when: (st) => st.fillOn && !complexFill },
-    { key: 'stroke', label: 'Stroke color', type: 'color' },
-    { key: 'width', label: 'Stroke width', type: 'slider', min: 0, max: 100, step: 0.5, unit: 'px' },
-    { key: 'align', label: 'Stroke align', type: 'select', options: STROKE_ALIGNS, when: (st) => st.width > 0 },
-    { key: 'dash', label: 'Dash', type: 'select', options: DASH_OPTIONS, when: (st) => st.width > 0 },
+    { key: 'fillOn', label: translateUI('Fill'), type: 'checkbox' },
+    { key: 'fill', label: translateUI('Fill color'), type: 'color', when: (st) => st.fillOn && !complexFill },
+    { key: 'stroke', label: translateUI('Stroke color'), type: 'color' },
+    { key: 'width', label: translateUI('Stroke width'), type: 'slider', min: 0, max: 100, step: 0.5, unit: 'px' },
+    { key: 'align', label: translateUI('Stroke align'), type: 'select', options: STROKE_ALIGNS, when: (st) => st.width > 0 },
+    { key: 'dash', label: translateUI('Dash'), type: 'select', options: DASH_OPTIONS, when: (st) => st.width > 0 },
     {
-      key: 'radius', label: 'Corner radius', type: 'slider',
+      key: 'radius', label: translateUI('Corner radius'), type: 'slider',
       min: 0, max: Math.max(1, maxRadius), step: 1, unit: 'px',
       when: () => !!box,
     },
@@ -711,14 +712,16 @@ function shapeSection(doc, layer) {
   node.appendChild(form.node);
   if (complexFill) {
     node.appendChild(el('div.pk-panel-note', {
-      text: `This layer uses a ${fill.type === 'pattern' ? 'pattern' : 'gradient'} fill. Turn Fill off to remove it, or edit it with the shape tools.`,
+      text: translateUI(fill.type === 'pattern'
+        ? 'This layer uses a pattern fill. Turn Fill off to remove it, or edit it with the shape tools.'
+        : 'This layer uses a gradient fill. Turn Fill off to remove it, or edit it with the shape tools.'),
     }));
   }
   node.appendChild(el('div.pk-panel-note', {
-    text: `${(s.subpaths || []).length} subpath${(s.subpaths || []).length === 1 ? '' : 's'} · edit the geometry with the Path Selection tools.`,
+    text: translateUI('{count} subpaths · edit the geometry with the Path Selection tools.', { count: (s.subpaths || []).length }),
   }));
   node.appendChild(el('div.pk-prop-actions', {},
-    el('button.pk-mini-btn', { type: 'button', text: 'Rasterize', onclick: () => ops.rasterizeLayer(doc, layer) })
+    el('button.pk-mini-btn', { type: 'button', text: translateUI('Rasterize'), onclick: () => ops.rasterizeLayer(doc, layer) })
   ));
 
   const off = commitOnRelease(node, committer);
@@ -797,14 +800,14 @@ function smartSection(doc, layer) {
   const committer = makeCommitter('Transform Smart Object', { layerFor: () => layer });
 
   const form = buildForm([
-    { key: 'x', label: 'Center X', type: 'number', step: 1, unit: 'px' },
-    { key: 'y', label: 'Center Y', type: 'number', step: 1, unit: 'px' },
-    { key: 'linked', label: 'Constrain proportions', type: 'checkbox' },
-    { key: 'scaleX', label: 'Width', type: 'slider', min: 1, max: 400, step: 0.5, unit: '%' },
-    { key: 'scaleY', label: 'Height', type: 'slider', min: 1, max: 400, step: 0.5, unit: '%', when: (v) => !v.linked },
-    { key: 'angle', label: 'Rotate', type: 'angle' },
-    { key: 'skewX', label: 'Skew X', type: 'slider', min: -85, max: 85, step: 0.5, unit: '°' },
-    { key: 'skewY', label: 'Skew Y', type: 'slider', min: -85, max: 85, step: 0.5, unit: '°' },
+    { key: 'x', label: translateUI('Center X'), type: 'number', step: 1, unit: 'px' },
+    { key: 'y', label: translateUI('Center Y'), type: 'number', step: 1, unit: 'px' },
+    { key: 'linked', label: translateUI('Constrain proportions'), type: 'checkbox' },
+    { key: 'scaleX', label: translateUI('Width'), type: 'slider', min: 1, max: 400, step: 0.5, unit: '%' },
+    { key: 'scaleY', label: translateUI('Height'), type: 'slider', min: 1, max: 400, step: 0.5, unit: '%', when: (v) => !v.linked },
+    { key: 'angle', label: translateUI('Rotate'), type: 'angle' },
+    { key: 'skewX', label: translateUI('Skew X'), type: 'slider', min: -85, max: 85, step: 0.5, unit: '°' },
+    { key: 'skewY', label: translateUI('Skew Y'), type: 'slider', min: -85, max: 85, step: 0.5, unit: '°' },
   ], state, (key, value) => {
     state[key] = value;
     if (key === 'linked' && value) state.scaleY = state.scaleX;
@@ -825,9 +828,9 @@ function smartSection(doc, layer) {
   const shapeText = () => {
     const p = getSmartPerspective(layer);
     const bits = [];
-    if (p[0] || p[1]) bits.push(`perspective ${round2(p[0] * 1000)}, ${round2(p[1] * 1000)} ‰`);
-    if (getSmartWarp(layer)) bits.push('warp mesh');
-    return bits.length ? bits.join(' · ') : 'None';
+    if (p[0] || p[1]) bits.push(translateUI('perspective {x}, {y} ‰', { x: round2(p[0] * 1000), y: round2(p[1] * 1000) }));
+    if (getSmartWarp(layer)) bits.push(translateUI('warp mesh'));
+    return bits.length ? bits.join(' · ') : translateUI('None');
   };
   const sizeVal = el('span.pk-panel-val', { text: `${s.sourceWidth} × ${s.sourceHeight} px` });
   const scaleVal = el('span.pk-panel-val', { text: scaleText() });
@@ -835,43 +838,43 @@ function smartSection(doc, layer) {
   const shapeVal = el('span.pk-panel-val', { text: shapeText() });
   const layerVal = el('span.pk-panel-val', { text: String(s.source.flatLayers().length) });
   const filterVal = el('span.pk-panel-val', {
-    text: filters.length ? `${filters.length} (${filters.filter((f) => f.enabled).length} on)` : 'None',
+    text: filters.length ? translateUI('{count} ({enabled} on)', { count: filters.length, enabled: filters.filter((f) => f.enabled).length }) : translateUI('None'),
   });
 
   node.appendChild(el('div.pk-panel-grid.pk-prop-smart-grid', {},
-    el('span.pk-panel-key', { text: 'Source size' }), sizeVal,
-    el('span.pk-panel-key', { text: 'Source layers' }), layerVal,
-    el('span.pk-panel-key', { text: 'Scale' }), scaleVal,
-    el('span.pk-panel-key', { text: 'Center' }), posVal,
-    el('span.pk-panel-key', { text: 'Distortion' }), shapeVal,
-    el('span.pk-panel-key', { text: 'Smart filters' }), filterVal
+    el('span.pk-panel-key', { text: translateUI('Source size') }), sizeVal,
+    el('span.pk-panel-key', { text: translateUI('Source layers') }), layerVal,
+    el('span.pk-panel-key', { text: translateUI('Scale') }), scaleVal,
+    el('span.pk-panel-key', { text: translateUI('Center') }), posVal,
+    el('span.pk-panel-key', { text: translateUI('Distortion') }), shapeVal,
+    el('span.pk-panel-key', { text: translateUI('Smart filters') }), filterVal
   ));
 
   node.appendChild(el('div.pk-panel-note', {
-    text: 'Centre, scale, rotation and skew are one matrix; perspective and warp ride alongside it. All of them, plus the smart filters, are re-applied to the embedded source on every render, so nothing here is baked into pixels until you rasterize.',
+    text: translateUI('Centre, scale, rotation and skew are one matrix; perspective and warp ride alongside it. All of them, plus the smart filters, are re-applied to the embedded source on every render, so nothing here is baked into pixels until you rasterize.'),
   }));
 
   const clearBtn = el('button.pk-mini-btn', {
-    type: 'button', text: 'Clear Distortion',
+    type: 'button', text: translateUI('Clear Distortion'),
     onclick: () => { clearSmartShape(doc, layer); sync(); },
   });
 
   node.appendChild(el('div.pk-prop-actions', {},
-    el('button.pk-mini-btn', { type: 'button', text: 'Edit Contents', onclick: () => editSmartContents(doc, layer) }),
+    el('button.pk-mini-btn', { type: 'button', text: translateUI('Edit Contents'), onclick: () => editSmartContents(doc, layer) }),
     el('button.pk-mini-btn', {
-      type: 'button', text: 'Replace…',
+      type: 'button', text: translateUI('Replace…'),
       onclick: async () => {
         const mod = await import('../dialogs/smart-object.js');
         await mod.showReplaceContentsDialog(doc, layer);
       },
     }),
-    el('button.pk-mini-btn', { type: 'button', text: 'Export…', onclick: () => exportSmartContents(doc, layer) }),
+    el('button.pk-mini-btn', { type: 'button', text: translateUI('Export…'), onclick: () => exportSmartContents(doc, layer) }),
     clearBtn,
     el('button.pk-mini-btn', {
-      type: 'button', text: 'Reset',
+      type: 'button', text: translateUI('Reset'),
       onclick: () => { resetSmartTransform(doc, layer); sync(); },
     }),
-    el('button.pk-mini-btn', { type: 'button', text: 'Rasterize', onclick: () => ops.rasterizeLayer(doc, layer) })
+    el('button.pk-mini-btn', { type: 'button', text: translateUI('Rasterize'), onclick: () => ops.rasterizeLayer(doc, layer) })
   ));
 
   const off = commitOnRelease(node, committer);
@@ -902,10 +905,11 @@ function smartSection(doc, layer) {
     scaleVal.textContent = scaleText();
     posVal.textContent = `${Math.round(state.x)}, ${Math.round(state.y)}`;
     shapeVal.textContent = shapeText();
-    clearBtn.style.display = shapeVal.textContent === 'None' ? 'none' : '';
+    const perspective = getSmartPerspective(layer);
+    clearBtn.style.display = !perspective[0] && !perspective[1] && !getSmartWarp(layer) ? 'none' : '';
     layerVal.textContent = String(layer.smart.source.flatLayers().length);
     const fl = getSmartFilters(layer);
-    filterVal.textContent = fl.length ? `${fl.length} (${fl.filter((f) => f.enabled).length} on)` : 'None';
+    filterVal.textContent = fl.length ? translateUI('{count} ({enabled} on)', { count: fl.length, enabled: fl.filter((f) => f.enabled).length }) : translateUI('None');
   };
   sync();
   return { node, sync, dispose: () => { off(); committer.flush(); } };
@@ -935,7 +939,7 @@ function documentSection(doc) {
   });
 
   const applyBtn = el('button.pk-btn.primary', {
-    type: 'button', text: 'Apply',
+    type: 'button', text: translateUI('Apply'),
     onclick: () => {
       const w = clamp(Math.round(Number(wIn.value) || doc.width), 1, 20000);
       const h = clamp(Math.round(Number(hIn.value) || doc.height), 1, 20000);
@@ -953,24 +957,24 @@ function documentSection(doc) {
 
   node.append(
     el('div.pk-panel-grid', {},
-      el('span.pk-panel-key', { text: 'Width' }), wIn,
-      el('span.pk-panel-key', { text: 'Height' }), hIn,
-      el('span.pk-panel-key', { text: 'Resolution' }), el('div.pk-slider-row', {}, resIn, el('span.pk-unit', { text: 'ppi' })),
-      el('span.pk-panel-key', { text: 'Color mode' }), el('span.pk-panel-val', { text: colorModeLabel(doc) }),
-      el('span.pk-panel-key', { text: 'Layers' }), el('span.pk-panel-val.pk-doc-layers', { text: String(doc.flatLayers().length) })
+      el('span.pk-panel-key', { text: translateUI('Width') }), wIn,
+      el('span.pk-panel-key', { text: translateUI('Height') }), hIn,
+      el('span.pk-panel-key', { text: translateUI('Resolution') }), el('div.pk-slider-row', {}, resIn, el('span.pk-unit', { text: translateUI('ppi') })),
+      el('span.pk-panel-key', { text: translateUI('Color mode') }), el('span.pk-panel-val', { text: colorModeLabel(doc) }),
+      el('span.pk-panel-key', { text: translateUI('Layers') }), el('span.pk-panel-val.pk-doc-layers', { text: String(doc.flatLayers().length) })
     ),
-    el('label.pk-check', {}, constrain, el('span', { text: 'Constrain proportions' })),
+    el('label.pk-check', {}, constrain, el('span', { text: translateUI('Constrain proportions') })),
     el('div.pk-prop-actions', {}, applyBtn)
   );
 
   node.appendChild(el('hr.pk-sep'));
   node.appendChild(el('div.pk-prop-actions', {},
-    el('button.pk-mini-btn', { type: 'button', text: 'Fit on Screen', onclick: () => app.fitView(8) }),
-    el('button.pk-mini-btn', { type: 'button', text: 'Trim', onclick: () => ops.trimDocument(doc, 'transparent') }),
-    el('button.pk-mini-btn', { type: 'button', text: 'Flatten', onclick: () => ops.flattenImage(doc) }),
-    el('button.pk-mini-btn', { type: 'button', text: 'New Layer', onclick: () => ops.addRasterLayer(doc) }),
+    el('button.pk-mini-btn', { type: 'button', text: translateUI('Fit on Screen'), onclick: () => app.fitView(8) }),
+    el('button.pk-mini-btn', { type: 'button', text: translateUI('Trim'), onclick: () => ops.trimDocument(doc, 'transparent') }),
+    el('button.pk-mini-btn', { type: 'button', text: translateUI('Flatten'), onclick: () => ops.flattenImage(doc) }),
+    el('button.pk-mini-btn', { type: 'button', text: translateUI('New Layer'), onclick: () => ops.addRasterLayer(doc) }),
     el('button.pk-mini-btn', {
-      type: 'button', text: 'Add Mask',
+      type: 'button', text: translateUI('Add Mask'),
       onclick: () => {
         const l = doc.activeLayer();
         if (!l) return;
@@ -992,7 +996,7 @@ function documentSection(doc) {
 
 function colorModeLabel(doc) {
   const m = String(doc.colorMode || 'rgb').toLowerCase();
-  if (m === 'gray' || m === 'grayscale') return 'Grayscale · 8 bit';
-  if (m === 'cmyk') return 'CMYK · 8 bit';
-  return 'RGB Color · 8 bit';
+  if (m === 'gray' || m === 'grayscale') return translateUI('Grayscale · 8 bit');
+  if (m === 'cmyk') return translateUI('CMYK · 8 bit');
+  return translateUI('RGB Color · 8 bit');
 }

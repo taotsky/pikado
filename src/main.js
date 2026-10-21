@@ -3,6 +3,7 @@ import './styles.css';
 import { app } from './core/app.js';
 import { CanvasView } from './ui/canvas-view.js';
 import { el } from './core/util.js';
+import { t } from './i18n.js';
 
 /* --- registration side effects ------------------------------------- */
 /* Each module registers itself with the relevant registry on import.   */
@@ -161,7 +162,7 @@ async function boot() {
 function installToasts() {
   const host = document.getElementById('toasts');
   app.on('toast', ({ message, kind, ms }) => {
-    const node = el(`div.pk-toast.${kind}`, { text: message });
+    const node = el(`div.pk-toast.${kind}`, { text: t(message) });
     host.appendChild(node);
     setTimeout(() => {
       node.style.transition = 'opacity .2s';
@@ -178,7 +179,7 @@ function installBusy() {
   app.on('busy', ({ label: text, active }) => {
     depth += active ? 1 : -1;
     depth = Math.max(0, depth);
-    label.textContent = text || 'Working…';
+    label.textContent = t(text || 'Working…');
     box.hidden = depth === 0;
   });
 }

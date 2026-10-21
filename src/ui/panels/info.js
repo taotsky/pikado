@@ -1,3 +1,4 @@
+import { t as translateUI } from '../../i18n.js';
 import { registerPanel } from '../panel-host.js';
 import { app } from '../../core/app.js';
 import { el, rafThrottle } from '../../core/util.js';
@@ -55,7 +56,7 @@ function samplePixel(doc, x, y) {
 
 registerPanel({
   id: 'info',
-  title: 'Info',
+  title: translateUI('Info'),
   icon: 'info',
   group: 'bottom',
   order: 3,
@@ -92,10 +93,10 @@ registerPanel({
 
     const sizeBlock = el('div.pki-block');
     const dimW = val('W :'); const dimH = val('H :');
-    const dimLabel = el('div.pki-sub', { text: 'Selection' });
+    const dimLabel = el('div.pki-sub', { text: translateUI('Selection') });
     sizeBlock.append(dimLabel, dimW.row, dimH.row);
 
-    const docLine = el('div.pki-doc', { text: 'No document' });
+    const docLine = el('div.pki-doc', { text: translateUI('No document') });
     const samplerHost = el('div.pki-samplers');
     const hintLine = el('div.pki-hint');
 
@@ -117,9 +118,9 @@ registerPanel({
         hexRow.v.textContent = '—';
         posX.v.textContent = posY.v.textContent = '—';
         dimW.v.textContent = dimH.v.textContent = '—';
-        docLine.textContent = 'No document';
+        docLine.textContent = translateUI('No document');
         samplerHost.replaceChildren();
-        hintLine.textContent = hintFor(app.tool);
+        hintLine.textContent = translateUI(hintFor(app.tool));
         return;
       }
 
@@ -148,16 +149,16 @@ registerPanel({
       posY.v.textContent = cursor ? String(py) : '—';
 
       if (dragFrom && cursor) {
-        dimLabel.textContent = 'Drag';
+        dimLabel.textContent = translateUI('Drag');
         dimW.v.textContent = String(Math.round(Math.abs(cursor.x - dragFrom.x)));
         dimH.v.textContent = String(Math.round(Math.abs(cursor.y - dragFrom.y)));
       } else if (doc.selection.active) {
         const b = doc.selection.bounds();
-        dimLabel.textContent = 'Selection';
+        dimLabel.textContent = translateUI('Selection');
         dimW.v.textContent = b ? String(b.width) : '0';
         dimH.v.textContent = b ? String(b.height) : '0';
       } else {
-        dimLabel.textContent = 'Selection';
+        dimLabel.textContent = translateUI('Selection');
         dimW.v.textContent = '—';
         dimH.v.textContent = '—';
       }
@@ -170,7 +171,7 @@ registerPanel({
           const sc = samplePixel(doc, Math.floor(s.x), Math.floor(s.y));
           const text = sc
             ? `#${i + 1}  R ${sc.r}  G ${sc.g}  B ${sc.b}   (${Math.round(s.x)}, ${Math.round(s.y)})`
-            : `#${i + 1}  — outside the canvas`;
+            : translateUI('#{index}  — outside the canvas', { index: i + 1 });
           const swatch = el('span.pki-sampler-chip', {
             style: { background: sc ? `rgb(${sc.r},${sc.g},${sc.b})` : 'transparent' },
           });
@@ -178,7 +179,7 @@ registerPanel({
         })
       );
 
-      hintLine.textContent = hintFor(app.tool);
+      hintLine.textContent = translateUI(hintFor(app.tool));
     };
 
     const scheduled = rafThrottle(update);

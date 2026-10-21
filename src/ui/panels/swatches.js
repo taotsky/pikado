@@ -1,3 +1,4 @@
+import { t as translateUI } from '../../i18n.js';
 import { registerPanel } from '../panel-host.js';
 import { app } from '../../core/app.js';
 import { el } from '../../core/util.js';
@@ -96,7 +97,7 @@ const LIBRARIES = [
 
 registerPanel({
   id: 'swatches',
-  title: 'Swatches',
+  title: translateUI('Swatches'),
   icon: 'swatch',
   group: 'mid',
   order: 1,
@@ -124,7 +125,7 @@ registerPanel({
     const renderUser = () => {
       grid.replaceChildren();
       if (!app.swatches.length) {
-        grid.appendChild(el('div.pksw-empty', { text: 'No swatches. Use + to add the foreground colour.' }));
+        grid.appendChild(el('div.pksw-empty', { text: translateUI('No swatches. Use + to add the foreground colour.') }));
         return;
       }
       app.swatches.forEach((s, i) => {
@@ -152,7 +153,7 @@ registerPanel({
                 wrap.classList.toggle('is-open');
                 arrow.style.transform = wrap.classList.contains('is-open') ? 'rotate(90deg)' : '';
               },
-            }, arrow, el('span', { text: `${lib.name} (${lib.colors.length})` })),
+            }, arrow, el('span', { text: `${translateUI(lib.name)} (${lib.colors.length})` })),
             el('div.pksw-group-body', {}, inner)
           );
           return wrap;
@@ -162,7 +163,7 @@ registerPanel({
 
     const tools = el('div.pksw-tools', {},
       el('button.pk-icon-btn', {
-        type: 'button', title: 'New swatch from the foreground colour',
+        type: 'button', title: translateUI('New swatch from the foreground colour'),
         onclick: () => {
           const hex = toHex(app.foreground);
           const existing = app.swatches.findIndex((s) => colorOf(s).toLowerCase() === hex.toLowerCase());
@@ -177,7 +178,7 @@ registerPanel({
         },
       }, iconEl('plus')),
       el('button.pk-icon-btn', {
-        type: 'button', title: 'Delete the selected swatch',
+        type: 'button', title: translateUI('Delete the selected swatch'),
         onclick: () => {
           if (selected < 0 || selected >= app.swatches.length) {
             app.toast('Select a swatch first.');
@@ -191,8 +192,8 @@ registerPanel({
       }, iconEl('trash')),
       el('div.pk-spacer'),
       el('button.pk-btn.subtle.pksw-reset', {
-        type: 'button', title: 'Restore the default swatch set',
-        text: 'Reset',
+        type: 'button', title: translateUI('Restore the default swatch set'),
+        text: translateUI('Reset'),
         onclick: () => {
           app.swatches = [...DEFAULT_SWATCHES];
           selected = -1;

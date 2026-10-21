@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { el, clamp } from '../core/util.js';
 import { toHex, parseColor } from '../core/color.js';
 import { Dialog, buildForm } from '../ui/dialog.js';
@@ -32,14 +33,14 @@ const frac = (v) => {
   return clamp(n > 1 ? n / 100 : n, 0, 1);
 };
 
-const BLEND_OPTIONS = BLEND_MODES.map((m) => ({ value: m.id, label: m.name }));
+const BLEND_OPTIONS = BLEND_MODES.map((m) => ({ value: m.id, label: t(m.name) }));
 
 const GRADIENT_TYPES = [
-  { value: 'linear', label: 'Linear' },
-  { value: 'radial', label: 'Radial' },
-  { value: 'angle', label: 'Angle' },
-  { value: 'reflected', label: 'Reflected' },
-  { value: 'diamond', label: 'Diamond' },
+  { value: 'linear', label: t('Linear') },
+  { value: 'radial', label: t('Radial') },
+  { value: 'angle', label: t('Angle') },
+  { value: 'reflected', label: t('Reflected') },
+  { value: 'diamond', label: t('Diamond') },
 ];
 
 const DEFAULT_STOPS = [{ pos: 0, color: '#000000' }, { pos: 1, color: '#ffffff' }];
@@ -103,7 +104,7 @@ function patternParams(idKey, scaleKey, when) {
   return [
     {
       key: idKey, label: 'Pattern', type: 'select', when,
-      options: [{ value: '', label: 'None' }, ...patternOptions()],
+      options: [{ value: '', label: t('None') }, ...patternOptions()],
     },
     pctParam(scaleKey, 'Scale', 10, 400, when),
   ];
@@ -142,7 +143,7 @@ function stopsParam(key, label, when) {
       let stops = normalizeStops(state[p.key]);
       const bar = el('canvas.pk-fx-ramp', { width: 256, height: 18 });
       const rows = el('div.pk-fx-stops');
-      const addBtn = el('button.pk-btn.subtle.pk-fx-add-stop', { type: 'button', text: 'Add stop' });
+      const addBtn = el('button.pk-btn.subtle.pk-fx-add-stop', { type: 'button', text: t('Add stop') });
 
       const emit = () => onChange(p.key, stops.map((s) => ({ pos: s.pos, color: s.color })));
 
@@ -176,7 +177,7 @@ function stopsParam(key, label, when) {
               emit();
             });
             const del = el('button.pk-icon-btn.pk-fx-stop-del', {
-              type: 'button', title: 'Delete stop', text: '×',
+              type: 'button', title: t('Delete stop'), text: '×',
               disabled: stops.length <= 2,
               onclick: () => {
                 if (stops.length <= 2) return;
@@ -236,24 +237,24 @@ function buildEffectPages() {
         {
           key: 'style', label: 'Style', type: 'select',
           options: [
-            { value: 'inner', label: 'Inner Bevel' },
-            { value: 'outer', label: 'Outer Bevel' },
-            { value: 'emboss', label: 'Emboss' },
-            { value: 'pillow-emboss', label: 'Pillow Emboss' },
+            { value: 'inner', label: t('Inner Bevel') },
+            { value: 'outer', label: t('Outer Bevel') },
+            { value: 'emboss', label: t('Emboss') },
+            { value: 'pillow-emboss', label: t('Pillow Emboss') },
           ],
         },
         {
           key: 'technique', label: 'Technique', type: 'select',
           options: [
-            { value: 'smooth', label: 'Smooth' },
-            { value: 'chisel-hard', label: 'Chisel Hard' },
-            { value: 'chisel-soft', label: 'Chisel Soft' },
+            { value: 'smooth', label: t('Smooth') },
+            { value: 'chisel-hard', label: t('Chisel Hard') },
+            { value: 'chisel-soft', label: t('Chisel Soft') },
           ],
         },
         pctParam('depth', 'Depth', 1, 1000),
         {
           key: 'direction', label: 'Direction', type: 'radio',
-          options: [{ value: 'up', label: 'Up' }, { value: 'down', label: 'Down' }],
+          options: [{ value: 'up', label: t('Up') }, { value: 'down', label: t('Down') }],
         },
         pxParam('size', 'Size'),
         pxParam('soften', 'Soften', 16),
@@ -277,9 +278,9 @@ function buildEffectPages() {
         {
           key: 'position', label: 'Position', type: 'select',
           options: [
-            { value: 'outside', label: 'Outside' },
-            { value: 'inside', label: 'Inside' },
-            { value: 'center', label: 'Center' },
+            { value: 'outside', label: t('Outside') },
+            { value: 'inside', label: t('Inside') },
+            { value: 'center', label: t('Center') },
           ],
         },
         blendParam(),
@@ -287,9 +288,9 @@ function buildEffectPages() {
         {
           key: 'fillType', label: 'Fill Type', type: 'select',
           options: [
-            { value: 'color', label: 'Color' },
-            { value: 'gradient', label: 'Gradient' },
-            { value: 'pattern', label: 'Pattern' },
+            { value: 'color', label: t('Color') },
+            { value: 'gradient', label: t('Gradient') },
+            { value: 'pattern', label: t('Pattern') },
           ],
         },
         colorParam('color', 'Color', isColorFill),
@@ -323,7 +324,7 @@ function buildEffectPages() {
         fracParam('noise', 'Noise'),
         {
           key: 'fillType', label: 'Fill Type', type: 'radio',
-          options: [{ value: 'color', label: 'Color' }, { value: 'gradient', label: 'Gradient' }],
+          options: [{ value: 'color', label: t('Color') }, { value: 'gradient', label: t('Gradient') }],
         },
         colorParam('color', 'Color', isColorFill),
         stopsParam('stops', 'Gradient', isGradientFill),
@@ -331,7 +332,7 @@ function buildEffectPages() {
         sectionLabel('Elements'),
         {
           key: 'source', label: 'Source', type: 'radio',
-          options: [{ value: 'edge', label: 'Edge' }, { value: 'center', label: 'Center' }],
+          options: [{ value: 'edge', label: t('Edge') }, { value: 'center', label: t('Center') }],
         },
         fracParam('choke', 'Choke'),
         pxParam('size', 'Size'),
@@ -388,7 +389,7 @@ function buildEffectPages() {
         fracParam('noise', 'Noise'),
         {
           key: 'fillType', label: 'Fill Type', type: 'radio',
-          options: [{ value: 'color', label: 'Color' }, { value: 'gradient', label: 'Gradient' }],
+          options: [{ value: 'color', label: t('Color') }, { value: 'gradient', label: t('Gradient') }],
         },
         colorParam('color', 'Color', isColorFill),
         stopsParam('stops', 'Gradient', isGradientFill),
@@ -482,7 +483,7 @@ export function showLayerStyleDialog(doc, layer, initialEffect = null) {
     doc.touch('layer-style');
   };
 
-  const dlg = new Dialog({ title: 'Layer Style', width: 720, className: 'pk-fx-dialog' });
+  const dlg = new Dialog({ title: t('Layer Style'), width: 720, className: 'pk-fx-dialog' });
   const listEl = el('div.pk-fx-list.pk-scroll');
   const paneEl = el('div.pk-fx-pane.pk-scroll');
   const rowNodes = new Map();
@@ -494,7 +495,7 @@ export function showLayerStyleDialog(doc, layer, initialEffect = null) {
     const row = el('div.pk-fx-row', { onclick: () => selectPage(id) });
     if (withCheck) {
       const box = el('input', {
-        type: 'checkbox', checked: !!working[id].enabled, title: `Toggle ${name}`,
+        type: 'checkbox', checked: !!working[id].enabled, title: t('Toggle {name}', { name: t(name) }),
       });
       box.addEventListener('click', (e) => e.stopPropagation());
       box.addEventListener('change', () => {
@@ -507,7 +508,7 @@ export function showLayerStyleDialog(doc, layer, initialEffect = null) {
     } else {
       row.append(el('span.pk-fx-nocheck'));
     }
-    row.append(el('span.pk-fx-name.pk-truncate', { text: name }));
+    row.append(el('span.pk-fx-name.pk-truncate', { text: t(name) }));
     rowNodes.set(id, row);
     listEl.append(row);
   };
@@ -520,13 +521,13 @@ export function showLayerStyleDialog(doc, layer, initialEffect = null) {
 
   const pageTitle = (text, onReset) =>
     el('div.pk-fx-title', {},
-      el('span', { text }),
-      onReset ? el('button.pk-btn.subtle.pk-fx-reset', { type: 'button', text: 'Reset', onclick: onReset }) : null
+      el('span', { text: t(text) }),
+      onReset ? el('button.pk-btn.subtle.pk-fx-reset', { type: 'button', text: t('Reset'), onclick: onReset }) : null
     );
 
   function blendingPage() {
     const options = layer.type === LayerType.GROUP
-      ? [{ value: 'pass-through', label: 'Pass Through' }, ...BLEND_OPTIONS]
+      ? [{ value: 'pass-through', label: t('Pass Through') }, ...BLEND_OPTIONS]
       : BLEND_OPTIONS;
     const params = [
       sectionLabel('General Blending'),
@@ -550,7 +551,7 @@ export function showLayerStyleDialog(doc, layer, initialEffect = null) {
     return [
       pageTitle('Blending Options'),
       form.node,
-      el('div.pk-hint', { text: 'Fill Opacity fades the layer pixels only — layer effects keep their own opacity.' }),
+      el('div.pk-hint', { text: t('Fill Opacity fades the layer pixels only — layer effects keep their own opacity.') }),
     ];
   }
 
@@ -593,7 +594,7 @@ export function showLayerStyleDialog(doc, layer, initialEffect = null) {
       }
       preview();
     });
-    const enableRow = el('label.pk-check.pk-fx-enable', {}, enableBox, el('span', { text: `Enable ${page.name}` }));
+    const enableRow = el('label.pk-check.pk-fx-enable', {}, enableBox, el('span', { text: t('Enable {name}', { name: t(page.name) }) }));
 
     return [pageTitle(page.name, reset), enableRow, form.node];
   }
@@ -608,8 +609,8 @@ export function showLayerStyleDialog(doc, layer, initialEffect = null) {
 
   dlg.setBody(el('div.pk-fx-cols', {}, listEl, paneEl));
   dlg.setButtons([
-    { label: 'Cancel', value: null, subtle: true },
-    { label: 'OK', value: true, primary: true },
+    { label: t('Cancel'), value: null, subtle: true },
+    { label: t('OK'), value: true, primary: true },
   ]);
   dlg.onClose((v) => {
     if (v) {

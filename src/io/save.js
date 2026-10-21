@@ -1,4 +1,5 @@
 import { app } from '../core/app.js';
+import { t } from '../i18n.js';
 import { getComposite, flattenLayers } from '../render/compositor.js';
 import { createCanvas, ctx2d, ctx2dRead, download } from '../core/util.js';
 import { savePKD } from './pkd.js';
@@ -43,7 +44,7 @@ function withExtension(name, extension) {
 
 function canvasToBlob(canvas, type, quality) {
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error(`Could not encode the image as ${type}`))), type, quality);
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error(t('Could not encode the image as {type}', { type })))), type, quality);
   });
 }
 
@@ -56,7 +57,7 @@ export function encodeRaster(canvas, format, quality, transparent) {
   if (format === 'heic') return encodeHEIC(canvas, { quality, transparent });
   if (format === 'icns') return writeICNS(canvas);
   const mime = MIME[format];
-  if (!mime) throw new Error(`Unsupported export format "${format}"`);
+  if (!mime) throw new Error(t('Unsupported export format "{format}"', { format }));
   return canvasToBlob(canvas, mime, quality);
 }
 
@@ -86,7 +87,7 @@ export async function saveDocument(doc) {
     const blob = await savePKD(doc);
     await writeToHandle(doc.fileHandle, blob);
     doc.dirty = false;
-    app.toast(`Saved ${doc.name}`, 'ok');
+    app.toast(t('Saved {name}', { name: doc.name }), 'ok');
     app.emit('doc-change', doc);
     return true;
   });
@@ -121,7 +122,7 @@ export async function saveDocumentAs(doc) {
         doc.filePath = handle.name || suggested;
         doc.name = baseName(handle.name || doc.name);
         doc.dirty = false;
-        app.toast(`Saved ${doc.name}`, 'ok');
+        app.toast(t('Saved {name}', { name: doc.name }), 'ok');
         app.emit('docs-change');
         return true;
       });
@@ -132,7 +133,7 @@ export async function saveDocumentAs(doc) {
     const blob = await savePKD(doc);
     download(blob, suggested);
     doc.dirty = false;
-    app.toast(`Saved ${suggested}`, 'ok');
+    app.toast(t('Saved {name}', { name: suggested }), 'ok');
     return true;
   });
 }
@@ -233,11 +234,11 @@ export async function exportDocument(doc, opts = {}) {
       blob = await encodeRaster(renderComposite(doc, 1, wantsTransparency), format);
     } else {
       const mime = MIME[format];
-      if (!mime) throw new Error(`Unsupported export format "${format}"`);
+      if (!mime) throw new Error(t('Unsupported export format "{format}"', { format }));
       const canvas = renderComposite(doc, scale, wantsTransparency);
       blob = await encodeRaster(canvas, format, quality, wantsTransparency);
       if (blob.type && blob.type !== mime) {
-        app.toast(`This browser cannot write ${format.toUpperCase()} — exported as ${blob.type.split('/')[1].toUpperCase()} instead.`, 'warn');
+        app.toast(t('This browser cannot write {format} — exported as {fallback} instead.', { format: format.toUpperCase(), fallback: blob.type.split('/')[1].toUpperCase() }), 'warn');
         extension = blob.type.split('/')[1] || format;
       } else {
         extension = format === 'jpg' ? 'jpg' : format;
@@ -247,7 +248,7 @@ export async function exportDocument(doc, opts = {}) {
     const filename = withExtension(opts.filename || baseName(doc.name), extension);
     if (shouldSave) {
       download(blob, filename);
-      app.toast(`Exported ${filename}`, 'ok');
+      app.toast(t('Exported {name}', { name: filename }), 'ok');
     }
     return blob;
   });
@@ -293,7 +294,7 @@ function contentBoundsOf(canvas) {
 export async function exportLayers(doc, opts = {}) {
   if (!doc) return null;
   const format = String(opts.format || 'png').toLowerCase();
-  if (!MIME[format] || format === 'icns') throw new Error(`Unsupported layer export format "${format}"`);
+  if (!MIME[format] || format === 'icns') throw new Error(t('Unsupported layer export format "{format}"', { format }));
   const scale = opts.scale && opts.scale > 0 ? opts.scale : 1;
   const quality = opts.quality == null ? 0.92 : Math.max(0.01, Math.min(1, opts.quality));
   const wantsTransparency = opts.transparent !== false && format !== 'jpeg' && format !== 'jpg';
@@ -340,7 +341,7 @@ export async function exportLayers(doc, opts = {}) {
     const zipBlob = zip.finish();
     const filename = withExtension(opts.filename || `${baseName(doc.name)}-layers`, 'zip');
     download(zipBlob, filename);
-    app.toast(`Exported ${count} layer${count === 1 ? '' : 's'} to ${filename}`, 'ok');
+    app.toast(t('Exported {count} layers to {name}', { count, name: filename }), 'ok');
     return zipBlob;
   });
 }

@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { Tool, registerTool } from './base.js';
 import { app } from '../core/app.js';
 import { PaintStroke, EffectStroke, brushOptionDescriptors, brushFromOptions } from '../paint/brush-engine.js';
@@ -466,7 +467,7 @@ export class BrushToolBase extends Tool {
 /* Brush                                                               */
 /* ================================================================== */
 
-const BLEND_OPTIONS = BLEND_MODES.map((m) => ({ value: m.id, label: m.name }));
+const BLEND_OPTIONS = BLEND_MODES.map((m) => ({ value: m.id, label: t(m.name) }));
 
 /** Insert the blend-mode select right after the tip controls (size/hardness). */
 function withBlendMode(list) {
@@ -528,7 +529,7 @@ class PencilTool extends BrushToolBase {
       options: [
         ...withBlendMode(tweakDefaults(brushOptionDescriptors().filter((d) => d.key !== 'hardness'), { size: 4, smoothing: 0 })),
         { key: 'autoErase', label: 'Auto Erase', type: 'checkbox', default: false,
-          hint: 'Paint the background colour over foreground-coloured pixels' },
+          hint: t('Paint the background colour over foreground-coloured pixels') },
       ],
     });
   }
@@ -569,9 +570,9 @@ registerTool(new PencilTool());
 /* ================================================================== */
 
 const LIMIT_OPTIONS = [
-  { value: 'discontiguous', label: 'Discontiguous' },
-  { value: 'contiguous', label: 'Contiguous' },
-  { value: 'find-edges', label: 'Find Edges' },
+  { value: 'discontiguous', label: t('Discontiguous') },
+  { value: 'contiguous', label: t('Contiguous') },
+  { value: 'find-edges', label: t('Find Edges') },
 ];
 
 /**
@@ -647,16 +648,16 @@ class ColorReplaceTool extends BrushToolBase {
         ...tweakDefaults(brushOptionDescriptors({ opacity: false, airbrush: false }), { size: 24 }),
         { key: 'mode', label: 'Mode', type: 'select', default: 'color',
           options: [
-            { value: 'hue', label: 'Hue' },
-            { value: 'saturation', label: 'Saturation' },
-            { value: 'color', label: 'Color' },
-            { value: 'luminosity', label: 'Luminosity' },
+            { value: 'hue', label: t('Hue') },
+            { value: 'saturation', label: t('Saturation') },
+            { value: 'color', label: t('Color') },
+            { value: 'luminosity', label: t('Luminosity') },
           ] },
         { key: 'sampling', label: 'Sampling', type: 'select', default: 'continuous',
           options: [
-            { value: 'continuous', label: 'Continuous' },
-            { value: 'once', label: 'Once' },
-            { value: 'background', label: 'Background Swatch' },
+            { value: 'continuous', label: t('Continuous') },
+            { value: 'once', label: t('Once') },
+            { value: 'background', label: t('Background Swatch') },
           ] },
         { key: 'limits', label: 'Limits', type: 'select', options: LIMIT_OPTIONS, default: 'contiguous' },
         { key: 'tolerance', label: 'Tolerance', type: 'slider', min: 1, max: 100, step: 1, default: 30, unit: '%' },
@@ -731,11 +732,11 @@ class MixerBrushTool extends BrushToolBase {
       options: [
         ...tweakDefaults(brushOptionDescriptors({ opacity: false, flow: false }), { size: 40, hardness: 60 }),
         { key: 'wet', label: 'Wet', type: 'slider', min: 0, max: 100, step: 1, default: 60, unit: '%',
-          hint: 'How much canvas colour the brush picks up' },
+          hint: t('How much canvas colour the brush picks up') },
         { key: 'load', label: 'Load', type: 'slider', min: 0, max: 100, step: 1, default: 70, unit: '%',
-          hint: 'How much paint the reservoir lays down' },
+          hint: t('How much paint the reservoir lays down') },
         { key: 'mix', label: 'Mix', type: 'slider', min: 0, max: 100, step: 1, default: 50, unit: '%',
-          hint: 'Ratio of canvas colour to reservoir colour in each dab' },
+          hint: t('Ratio of canvas colour to reservoir colour in each dab') },
         { key: 'flow', label: 'Flow', type: 'slider', min: 1, max: 100, step: 1, default: 100, unit: '%' },
         { key: 'cleanAfterStroke', label: 'Clean Brush After Stroke', type: 'checkbox', default: true },
       ],

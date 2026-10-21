@@ -1,5 +1,6 @@
 import { app } from '../core/app.js';
 import { embedded } from '../embed/mode.js';
+import { t } from '../i18n.js';
 
 /**
  * Central command registry. Menus, keyboard shortcuts, panel buttons and the
@@ -64,10 +65,10 @@ export function labelOf(id) {
     try {
       return c.dynamicLabel();
     } catch {
-      return c.label;
+      return t(c.label);
     }
   }
-  return c.label;
+  return t(c.label);
 }
 
 let running = false;

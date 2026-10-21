@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 /**
  * The pen group: pen, freeform pen, curvature pen and the three
  * add/delete/convert point tools.
@@ -28,12 +29,12 @@ import {
 /* ------------------------------------------------------------------ */
 
 export const DASH_OPTIONS = [
-  { value: 'solid', label: 'Solid' },
-  { value: 'dash', label: 'Dashed' },
-  { value: 'dash-tight', label: 'Dashed (tight)' },
-  { value: 'dot', label: 'Dotted' },
-  { value: 'dash-dot', label: 'Dash-dot' },
-  { value: 'long-dash', label: 'Long dash' },
+  { value: 'solid', label: t('Solid') },
+  { value: 'dash', label: t('Dashed') },
+  { value: 'dash-tight', label: t('Dashed (tight)') },
+  { value: 'dot', label: t('Dotted') },
+  { value: 'dash-dot', label: t('Dash-dot') },
+  { value: 'long-dash', label: t('Long dash') },
 ];
 
 /** The Path / Shape / Pixels selector shared by the pen and shape tools. */
@@ -44,9 +45,9 @@ export function modeOption(def = 'shape') {
     type: 'select',
     default: def,
     options: [
-      { value: 'shape', label: 'Shape' },
-      { value: 'path', label: 'Path' },
-      { value: 'pixels', label: 'Pixels' },
+      { value: 'shape', label: t('Shape') },
+      { value: 'path', label: t('Path') },
+      { value: 'pixels', label: t('Pixels') },
     ],
   };
 }
@@ -61,7 +62,7 @@ export function vectorStyleOptions() {
     { key: 'strokeWidth', label: 'Stroke width', type: 'number', min: 0, max: 400, step: 0.5, default: 0, unit: 'px', when: paints },
     {
       key: 'strokeAlign', label: 'Align', type: 'select', default: 'center',
-      options: [{ value: 'inside', label: 'Inside' }, { value: 'center', label: 'Center' }, { value: 'outside', label: 'Outside' }],
+      options: [{ value: 'inside', label: t('Inside') }, { value: 'center', label: t('Center') }, { value: 'outside', label: t('Outside') }],
       when: (s) => paints(s) && (s.strokeWidth || 0) > 0,
     },
     {

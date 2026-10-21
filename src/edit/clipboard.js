@@ -1,4 +1,5 @@
 import { app } from '../core/app.js';
+import { t } from '../i18n.js';
 import { createCanvas, loadImage, clamp } from '../core/util.js';
 import { decodeImage } from '../io/decode.js';
 import { compositeDocument, flattenLayers } from '../render/compositor.js';
@@ -121,7 +122,7 @@ function fitToDocument(doc, src) {
 function reportFit(art, clip) {
   if (art === clip.canvas) return;
   const percent = Math.round((art.width / clip.canvas.width) * 100);
-  app.toast(`Pasted at ${percent}% so the whole image fits the canvas`, 'ok', 3200);
+  app.toast(t('Pasted at {percent}% so the whole image fits the canvas', { percent }), 'ok', 3200);
 }
 
 /* ------------------------------------------------------------------ */
@@ -148,7 +149,7 @@ export function copy(doc) {
   const canvas = extractRegion(doc, src, bounds);
   storeClipboard(doc, canvas, bounds);
   writeSystemClipboard(canvas);
-  app.toast(`Copied ${bounds.width} × ${bounds.height} px`, 'ok', 1400);
+  app.toast(t('Copied {width} × {height} px', { width: bounds.width, height: bounds.height }), 'ok', 1400);
   return true;
 }
 
@@ -163,7 +164,7 @@ export function copyMerged(doc) {
   const canvas = extractRegion(doc, compositeDocument(doc), bounds);
   storeClipboard(doc, canvas, bounds);
   writeSystemClipboard(canvas);
-  app.toast(`Copied merged ${bounds.width} × ${bounds.height} px`, 'ok', 1400);
+  app.toast(t('Copied merged {width} × {height} px', { width: bounds.width, height: bounds.height }), 'ok', 1400);
   return true;
 }
 
@@ -189,7 +190,7 @@ export function clear(doc, { label = 'Clear' } = {}) {
     return false;
   }
   if (layer.locked.all || layer.locked.pixels) {
-    app.toast(`Layer "${layer.name}" is locked.`);
+    app.toast(t('Layer "{name}" is locked.', { name: layer.name }));
     return false;
   }
   const onMask = !!(layer.editingMask && layer.mask);

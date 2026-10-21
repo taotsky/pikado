@@ -1,4 +1,5 @@
 import { BROWSE_FONTS, fontFamilyOptions, normalizeFontId } from '../text/fonts.js';
+import { t } from '../i18n.js';
 
 /**
  * The one place the three font pickers agree.
@@ -25,7 +26,8 @@ export function setInstalledProvider(fn) {
 
 /** The options a font `select` should show right now. */
 export function fontOptions(current) {
-  return fontFamilyOptions(current, installedProvider());
+  return fontFamilyOptions(current, installedProvider()).map((option) =>
+    option.value === BROWSE_FONTS ? { ...option, label: t(option.label) } : option);
 }
 
 /**

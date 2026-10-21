@@ -18,7 +18,7 @@
   flex: 0 0 auto;
   transition: background .12s ease, color .12s ease;
 }
-.pk-tab:hover { background: rgba(255, 255, 255, .045); color: var(--text); }
+.pk-tab:hover { background: rgba(var(--ui-ink), .045); color: var(--text); }
 
 .pk-tab.active {
   background: var(--s2);

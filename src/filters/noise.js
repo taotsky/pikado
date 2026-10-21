@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 /**
  * Filter > Noise — Add Noise, Despeckle, Dust & Scratches, Median and
  * Reduce Noise.
@@ -206,8 +207,8 @@ registerFilter({
   params: [
     { key: 'amount', label: 'Amount', type: 'slider', min: 0.1, max: 400, step: 0.1, default: 12.5, unit: '%' },
     { key: 'distribution', label: 'Distribution', type: 'radio', default: 'uniform', options: [
-      { value: 'uniform', label: 'Uniform' },
-      { value: 'gaussian', label: 'Gaussian' },
+      { value: 'uniform', label: t('Uniform') },
+      { value: 'gaussian', label: t('Gaussian') },
     ] },
     { key: 'monochromatic', label: 'Monochromatic', type: 'checkbox', default: false },
     { key: 'seed', label: 'Seed', type: 'number', min: 0, max: 99999, step: 1, default: 1 },

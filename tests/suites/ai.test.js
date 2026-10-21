@@ -181,7 +181,7 @@ suite('ai / every failure says what it is and what to do', async (t) => {
 
   // A rate limit is only useful if it says how long.
   const limited = mapHttpError(429, {}, P, { 'retry-after': '30' });
-  t.ok(messageFor(limited).text.includes('30 seconds'), 'the wait is quoted from Retry-After');
+  t.ok(messageFor(limited).text.includes('30 秒'), 'the localized wait is quoted from Retry-After');
 
   /*
    * The sweep that stops a new code shipping with a generic fallback: every code

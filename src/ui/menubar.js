@@ -1,4 +1,5 @@
 import { el } from '../core/util.js';
+import { t } from '../i18n.js';
 import { app } from '../core/app.js';
 import { icon } from './icons.js';
 import {
@@ -47,7 +48,7 @@ export function buildMenubar(rootEl) {
   rootEl.replaceChildren();
 
   rootEl.appendChild(
-    el('div.pk-brand', { title: `${BRAND.name} — ${BRAND.tagline}`, html: brandLock({ size: 21, wordSize: 15 }) })
+    el('div.pk-brand', { title: `${BRAND.name} — ${t(BRAND.tagline)}`, html: brandLock({ size: 21, wordSize: 15 }) })
   );
 
   bar.menus = el('nav.pk-menus', { role: 'menubar' });
@@ -94,7 +95,7 @@ function renderTopLevel() {
     if (!entry || !entry.label) return;
     const btn = el('button.pk-menu-btn', {
       type: 'button',
-      text: entry.label,
+      text: t(entry.label),
       'aria-haspopup': 'true',
       onclick: () => (bar.openIndex === i ? closeAll() : openTop(i)),
       onmouseenter: () => {
@@ -114,7 +115,7 @@ function syncTitle() {
   if (!bar.title) return;
   const doc = app.activeDoc;
   if (!doc) {
-    bar.title.replaceChildren(el('span.pk-doc-name.empty', { text: 'No document' }));
+    bar.title.replaceChildren(el('span.pk-doc-name.empty', { text: t('No document') }));
     return;
   }
   // NB: replaceChildren() is the native DOM API and stringifies null to the
@@ -122,7 +123,7 @@ function syncTitle() {
   bar.title.replaceChildren(...[
     el('span.pk-doc-name', { text: doc.name }),
     el('span.pk-doc-meta', { text: `${doc.width} × ${doc.height}` }),
-    doc.dirty ? el('span.pk-doc-dirty', { text: '●', title: 'Unsaved changes' }) : null,
+    doc.dirty ? el('span.pk-doc-dirty', { text: '●', title: t('Unsaved changes') }) : null,
   ].filter(Boolean));
 }
 
@@ -178,7 +179,7 @@ function closeAll() {
 function openPopup(items, x, y, depth) {
   while (bar.popups.length > depth) bar.popups.pop().remove();
   const menu = el('div.pk-menu', { role: 'menu' });
-  if (!items.length) menu.appendChild(el('div.pk-menu-item.disabled', {}, el('span.pk-menu-tick'), el('span.pk-menu-label', { text: '(empty)' })));
+  if (!items.length) menu.appendChild(el('div.pk-menu-item.disabled', {}, el('span.pk-menu-tick'), el('span.pk-menu-label', { text: t('(empty)') })));
   for (const it of items) menu.appendChild(buildItem(it, depth));
   menu.style.left = '-9999px';
   menu.style.top = '0px';
@@ -274,13 +275,13 @@ function normalizeList(list) {
 
     if (entry.dynamic) {
       const items = dynamicItems(entry.dynamic);
-      if (entry.label) out.push({ label: entry.label, children: items, enabled: items.length > 0 });
+      if (entry.label) out.push({ label: t(entry.label), children: items, enabled: items.length > 0 });
       else out.push(...items);
       continue;
     }
     if (Array.isArray(entry.items)) {
       const children = normalizeList(entry.items);
-      out.push({ label: entry.label || '', children, enabled: children.length > 0 });
+      out.push({ label: t(entry.label || ''), children, enabled: children.length > 0 });
       continue;
     }
     if (entry.id) {
@@ -348,9 +349,9 @@ function filterItems() {
     if (!list.length) return;
     seen.add(name);
     out.push({
-      label: name,
+      label: t(name),
       children: list.map((f) => ({
-        label: f.name,
+        label: t(f.name),
         enabled: hasDoc,
         run: () => applyFilterCommand(f.id),
       })),
@@ -377,7 +378,7 @@ function adjustmentItems() {
   for (const [, list] of groupedAdjustments()) {
     if (out.length) out.push({ type: 'sep' });
     for (const a of list) {
-      out.push({ label: a.name, enabled: hasDoc, run: () => applyAdjustmentCommand(a.id) });
+      out.push({ label: t(a.name), enabled: hasDoc, run: () => applyAdjustmentCommand(a.id) });
     }
   }
   return collapseSeparators(out);
@@ -392,7 +393,7 @@ function adjustmentLayerItems() {
     if (out.length) out.push({ type: 'sep' });
     for (const a of layerable) {
       out.push({
-        label: a.name.replace(/\.\.\.$/, ''),
+        label: t(a.name.replace(/\.\.\.$/, '')),
         enabled: hasDoc,
         run: () => {
           if (app.activeDoc) addAdjustmentLayer(app.activeDoc, a.id);
@@ -415,12 +416,12 @@ function toolItems() {
   const out = [];
   for (const group of toolGroups) {
     if (out.length) out.push({ type: 'sep' });
-    for (const t of group.tools) {
+    for (const tool of group.tools) {
       out.push({
-        label: t.name,
-        accel: t.shortcut || '',
-        checked: app.tool === t,
-        run: () => app.setTool(t.id),
+        label: t(tool.name),
+        accel: tool.shortcut || '',
+        checked: app.tool === tool,
+        run: () => app.setTool(tool.id),
       });
     }
   }

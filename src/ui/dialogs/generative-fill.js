@@ -1,3 +1,4 @@
+import { t } from '../../i18n.js';
 import './dialogs.css';
 import './generative-fill.css';
 import { el } from '../../core/util.js';
@@ -38,24 +39,24 @@ export async function showGenerativeFillDialog(doc = app.activeDoc) {
   if (!doc) return false;
   const bounds = doc.selection.bounds();
   if (!doc.selection.mask || !bounds || !bounds.width) {
-    app.toast('Select the area to fill first.', 'warn');
+    app.toast(t('Select the area to fill first.'), 'warn');
     return false;
   }
 
   const providers = listProviders();
   if (!providers.length) {
-    app.toast('No image provider is available.', 'error');
+    app.toast(t('No image provider is available.'), 'error');
     return false;
   }
   let providerId = lastProviderId || (getProvider('openai') ? 'openai' : providers[0].id);
 
-  const dialog = new Dialog({ title: 'Generative Fill', width: 480, className: 'pk-genfill' });
+  const dialog = new Dialog({ title: t('Generative Fill'), width: 480, className: 'pk-genfill' });
   let controller = null;
   let busy = false;
 
   const prompt = el('textarea.pk-input', {
     rows: 3,
-    placeholder: 'Describe what should be there — for example, a stone path leading into trees',
+    placeholder: t('Describe what should be there — for example, a stone path leading into trees'),
     spellcheck: 'true',
   });
   prompt.value = lastPrompt;
@@ -72,7 +73,7 @@ export async function showGenerativeFillDialog(doc = app.activeDoc) {
    * value, so they cannot disagree.
    */
   const effortSel = el('select.pk-input');
-  const effortRow = el('div.pk-field', {}, el('label', { text: 'Effort' }), effortSel);
+  const effortRow = el('div.pk-field', {}, el('label', { text: t('Effort') }), effortSel);
   effortSel.addEventListener('change', () => {
     const p = getProvider(providerSel.value);
     setEffort(providerSel.value, getModel(p), effortSel.value);
@@ -90,22 +91,22 @@ export async function showGenerativeFillDialog(doc = app.activeDoc) {
     const choices = effortChoices(p, modelId);
     effortRow.hidden = !choices.length;
     if (choices.length) {
-      effortRow.querySelector('label').textContent = (p && p.effortLabel) || 'Effort';
-      effortSel.replaceChildren(...choices.map((c) => el('option', { value: c.value, text: c.label })));
+      effortRow.querySelector('label').textContent = t((p && p.effortLabel) || 'Effort');
+      effortSel.replaceChildren(...choices.map((c) => el('option', { value: c.value, text: t(c.label) })));
       effortSel.value = getEffort(p, modelId);
     }
     const size = (p && p.sizes && p.sizes[0]) || 1024;
     const frame = planFrame(bounds, doc.width, doc.height, { size });
     const region = Math.max(frame.crop.width, frame.crop.height);
     const bits = [];
-    if (p && p.needsKey && !hasCredential(p.id)) bits.push(`No ${p.name} key set yet — you will be asked for one.`);
+    if (p && p.needsKey && !hasCredential(p.id)) bits.push(t('No {provider} key set yet — you will be asked for one.', { provider: p.name }));
     if (frame.scale < 1) {
-      bits.push(`Generating at ${size}x${size} for a ${region}px region, so the fill will be softer than the rest of the image.`);
+      bits.push(t('Generating at {size}x{size} for a {region}px region, so the fill will be softer than the rest of the image.', { size, region }));
     }
-    if (p && !p.needsKey) bits.push('This provider runs without a key and sends nothing anywhere.');
+    if (p && !p.needsKey) bits.push(t('This provider runs without a key and sends nothing anywhere.'));
     // Which model is about to be billed, said where it is spent rather than
     // only in the settings dialog it was chosen in.
-    if (modelId) bits.push(`Using ${modelId} — change it in Edit > AI Settings.`);
+    if (modelId) bits.push(t('Using {model} — change it in Edit > AI Settings.', { model: modelId }));
     note.textContent = bits.join(' ');
   };
   providerSel.addEventListener('change', () => { providerId = providerSel.value; syncNote(); });
@@ -117,7 +118,7 @@ export async function showGenerativeFillDialog(doc = app.activeDoc) {
     prompt.disabled = on;
     providerSel.disabled = on;
     effortSel.disabled = on;
-    status.textContent = label || '';
+    status.textContent = t(label) || '';
     status.className = `pk-genfill-status${on ? ' busy' : ''}`;
     dialog.setButtons(on ? busyButtons : idleButtons);
   };
@@ -142,7 +143,7 @@ export async function showGenerativeFillDialog(doc = app.activeDoc) {
     const provider = getProvider(providerSel.value);
     if (!provider) return;
     const text = prompt.value.trim();
-    if (!text) { app.toast('Describe what should be there first.', 'warn'); return; }
+    if (!text) { app.toast(t('Describe what should be there first.'), 'warn'); return; }
     lastPrompt = text;
     lastProviderId = provider.id;
     const model = getModel(provider);
@@ -164,7 +165,7 @@ export async function showGenerativeFillDialog(doc = app.activeDoc) {
     const tick = setInterval(() => {
       if (!busy) return;
       const s = Math.round((Date.now() - started) / 1000);
-      status.textContent = `Generating… ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+      status.textContent = t('Generating… {time}', { time: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` });
     }, 1000);
 
     try {
@@ -175,7 +176,7 @@ export async function showGenerativeFillDialog(doc = app.activeDoc) {
       clearInterval(tick);
       if (err && err.code === GEN_ERRORS.ABORTED) {
         // Not an error, but the user should know it may still have cost them.
-        app.toast(`Stopped. ${provider.name} may still charge for a generation already under way.`, 'info', 5000);
+        app.toast(t('Stopped. {provider} may still charge for a generation already under way.', { provider: provider.name }), 'info', 5000);
         setBusy(false, '');
         return;
       }
@@ -186,21 +187,21 @@ export async function showGenerativeFillDialog(doc = app.activeDoc) {
   };
 
   const idleButtons = [
-    { label: 'Cancel', value: false, subtle: true },
-    { label: 'Generate', primary: true, onClick: () => { generate(); return false; } },
+    { label: t('Cancel'), value: false, subtle: true },
+    { label: t('Generate'), primary: true, onClick: () => { generate(); return false; } },
   ];
   const busyButtons = [
-    { label: 'Cancel', primary: true, onClick: () => { if (controller) controller.abort(new DOMException('cancelled', 'AbortError')); return false; } },
+    { label: t('Cancel'), primary: true, onClick: () => { if (controller) controller.abort(new DOMException('cancelled', 'AbortError')); return false; } },
   ];
   const keyButtons = [
-    { label: 'Cancel', value: false, subtle: true },
-    { label: 'Change key…', onClick: async () => { await showAiKeyDialog(providerSel.value); syncNote(); return false; } },
-    { label: 'Try again', primary: true, onClick: () => { generate(); return false; } },
+    { label: t('Cancel'), value: false, subtle: true },
+    { label: t('Change key…'), onClick: async () => { await showAiKeyDialog(providerSel.value); syncNote(); return false; } },
+    { label: t('Try again'), primary: true, onClick: () => { generate(); return false; } },
   ];
 
   dialog.setBody(
-    el('div.pk-field', {}, el('label', { text: 'Describe the fill' }), prompt),
-    el('div.pk-field', {}, el('label', { text: 'Provider' }), providerSel),
+    el('div.pk-field', {}, el('label', { text: t('Describe the fill') }), prompt),
+    el('div.pk-field', {}, el('label', { text: t('Provider') }), providerSel),
     effortRow,
     note,
     bar,

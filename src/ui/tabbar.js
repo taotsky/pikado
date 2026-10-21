@@ -1,3 +1,4 @@
+import { t as translateUI } from '../i18n.js';
 import { el, rafThrottle } from '../core/util.js';
 import { app } from '../core/app.js';
 import { icon } from './icons.js';
@@ -50,10 +51,10 @@ function render() {
       onpointerdown: (e) => { if (e.button === 0) beginTabDrag(e, doc); },
     },
       el('span.pk-tab-name.pk-truncate', { text: doc.name }),
-      doc.dirty ? el('span.pk-tab-dirty', { title: 'Unsaved changes' }) : null,
+      doc.dirty ? el('span.pk-tab-dirty', { title: translateUI('Unsaved changes') }) : null,
       el('button.pk-tab-close', {
         type: 'button',
-        title: 'Close',
+        title: translateUI('Close'),
         html: icon('close', { size: 10 }),
         onclick: (e) => { e.stopPropagation(); closeDoc(doc); },
       })
@@ -64,7 +65,7 @@ function render() {
   root.appendChild(
     el('button.pk-tab-new', {
       type: 'button',
-      title: 'New document',
+      title: translateUI('New document'),
       html: icon('plus', { size: 13 }),
       onclick: newDocument,
     })
@@ -119,7 +120,7 @@ function beginTabDrag(e, doc) {
 async function closeDoc(doc) {
   if (doc.dirty) {
     const ok = await confirmDialog(
-      `"${doc.name}" has unsaved changes. Close it anyway?`,
+      translateUI('"{name}" has unsaved changes. Close it anyway?', { name: doc.name }),
       'Close Document',
       'Close Without Saving'
     );

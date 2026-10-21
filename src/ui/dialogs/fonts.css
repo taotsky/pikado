@@ -76,7 +76,7 @@
 }
 
 .pkf-row:hover { background: var(--s2); }
-.pkf-row.active { background: var(--accent-soft, var(--accent)); color: #fff; }
+.pkf-row.active { background: var(--accent-soft, var(--accent)); color: var(--text-hi); }
 .pkf-row.active .pkf-spec { color: inherit; }
 
 .pkf-name { flex: 0 0 190px; font-size: var(--fs-sm); }

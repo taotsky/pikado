@@ -1,3 +1,4 @@
+import { t as translateUI } from '../../i18n.js';
 import { registerPanel } from '../panel-host.js';
 import { app } from '../../core/app.js';
 import { el, createCanvas, ctx2d } from '../../core/util.js';
@@ -114,7 +115,7 @@ const fmtDelay = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(ms % 1000 ? 1 : 0)
 
 registerPanel({
   id: 'timeline',
-  title: 'Timeline',
+  title: translateUI('Timeline'),
   icon: 'timeline',
   group: 'bottom',
   order: 40,
@@ -127,7 +128,7 @@ registerPanel({
 
     const strip = el('div.pktl-strip.pk-scroll');
     const bar = el('div.pktl-bar');
-    const empty = el('div.pk-empty', { text: 'No animation. Create the first frame to start a timeline.' });
+    const empty = el('div.pk-empty', { text: translateUI('No animation. Create the first frame to start a timeline.') });
     body.append(strip, bar);
 
     /** True while the panel is applying a frame, so write-back stays off. */
@@ -318,11 +319,11 @@ registerPanel({
 
       const iconBtn = (icon, title, onclick, opts = {}) =>
         el('button.pk-icon-btn' + (opts.on ? '.on' : ''), {
-          title, onclick, disabled: opts.disabled || false,
+          title: translateUI(title), onclick, disabled: opts.disabled || false,
         }, iconEl(icon, { size: 14 }));
 
       const loop = el('select.pk-select.pktl-loop', {
-        title: 'How many times to play',
+        title: translateUI('How many times to play'),
         onchange: (e) => {
           if (!d) return;
           d.loopCount = Number(e.target.value) || 0;
@@ -330,7 +331,7 @@ registerPanel({
         },
       });
       for (const [value, label] of [[0, 'Forever'], [1, 'Once'], [2, '2 times'], [3, '3 times'], [5, '5 times'], [10, '10 times']]) {
-        loop.appendChild(el('option', { value, text: label }));
+        loop.appendChild(el('option', { value, text: value > 1 ? translateUI('{count} times', { count: value }) : translateUI(label) }));
       }
       if (d) loop.value = String(d.loopCount || 0);
 
@@ -389,7 +390,7 @@ registerPanel({
       const d = doc();
       renderBar();
       if (!d) {
-        strip.replaceChildren(el('div.pk-empty', { text: 'No document open.' }));
+        strip.replaceChildren(el('div.pk-empty', { text: translateUI('No document open.') }));
         return;
       }
       const frames = framesOf(d);
@@ -397,8 +398,8 @@ registerPanel({
         strip.replaceChildren(
           empty,
           el('div.pktl-start', {},
-            el('button.pk-btn.primary', { text: 'Create Frame Animation', onclick: actions.create }),
-            el('button.pk-btn.subtle', { text: 'Make Frames From Layers', onclick: actions.fromLayers })
+            el('button.pk-btn.primary', { text: translateUI('Create Frame Animation'), onclick: actions.create }),
+            el('button.pk-btn.subtle', { text: translateUI('Make Frames From Layers'), onclick: actions.fromLayers })
           )
         );
         return;
@@ -433,7 +434,7 @@ registerPanel({
         thumb.className = 'pktl-thumb';
 
         const delay = el('select.pktl-delay', {
-          title: 'Frame delay',
+          title: translateUI('Frame delay'),
           onchange: (e) => {
             const ms = Number(e.target.value);
             withCommit('Frame Delay', (dd) => setFrameDelay(dd, ms, selection()));
@@ -448,7 +449,7 @@ registerPanel({
       });
 
       strip.replaceChildren(...cells, el('button.pk-icon-btn.pktl-add', {
-        title: 'New frame', onclick: actions.add,
+        title: translateUI('New frame'), onclick: actions.add,
       }, iconEl('plus', { size: 14 })));
     }
 

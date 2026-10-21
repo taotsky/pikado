@@ -1,3 +1,4 @@
+import { t as translateUI } from '../i18n.js';
 import { el, clamp } from '../core/util.js';
 import { Dialog } from './dialog.js';
 import {
@@ -124,12 +125,12 @@ export function showColorPicker({ color = '#000000', title = 'Color Picker', onC
   let H = startHsv.h, S = startHsv.s, V = startHsv.v;
   let webOnly = false;
 
-  const svField = el('canvas.pkcp-sv', { width: 256, height: 256, title: 'Saturation / Brightness' });
-  const hueStrip = el('canvas.pkcp-strip', { width: 18, height: 256, title: 'Hue' });
-  const alphaStrip = el('canvas.pkcp-strip', { width: 18, height: 256, title: 'Opacity' });
+  const svField = el('canvas.pkcp-sv', { width: 256, height: 256, title: translateUI('Saturation / Brightness') });
+  const hueStrip = el('canvas.pkcp-strip', { width: 18, height: 256, title: translateUI('Hue') });
+  const alphaStrip = el('canvas.pkcp-strip', { width: 18, height: 256, title: translateUI('Opacity') });
 
-  const beforeCell = el('button.pkcp-half', { type: 'button', title: 'Original colour — click to restore' });
-  const afterCell = el('div.pkcp-half.is-new', { title: 'New colour' });
+  const beforeCell = el('button.pkcp-half', { type: 'button', title: translateUI('Original colour — click to restore') });
+  const afterCell = el('div.pkcp-half.is-new', { title: translateUI('New colour') });
   const compare = el('div.pkcp-compare.pk-checker', {}, afterCell, beforeCell);
 
   const fields = [];
@@ -294,7 +295,7 @@ export function showColorPicker({ color = '#000000', title = 'Color Picker', onC
 
   const buildRecent = () => {
     recentRow.replaceChildren(
-      el('span.pkcp-recent-label', { text: 'Recent' }),
+      el('span.pkcp-recent-label', { text: translateUI('Recent') }),
       ...recentColors.map((hex) =>
         el('button.pkcp-chip', {
           type: 'button', title: hex, style: { background: hex },
@@ -302,7 +303,7 @@ export function showColorPicker({ color = '#000000', title = 'Color Picker', onC
         })
       )
     );
-    if (!recentColors.length) recentRow.appendChild(el('span.pkcp-recent-empty', { text: 'none yet' }));
+    if (!recentColors.length) recentRow.appendChild(el('span.pkcp-recent-empty', { text: translateUI('none yet') }));
   };
   buildRecent();
 
@@ -324,7 +325,7 @@ export function showColorPicker({ color = '#000000', title = 'Color Picker', onC
       labBlock,
       cmykBlock,
       el('div.pkcp-foot', {},
-        el('label.pk-check', {}, webCheck, el('span', { text: 'Only web colors' })),
+        el('label.pk-check', {}, webCheck, el('span', { text: translateUI('Only web colors') })),
         recentRow
       )
     )
@@ -333,8 +334,8 @@ export function showColorPicker({ color = '#000000', title = 'Color Picker', onC
   const dlg = new Dialog({ title, width: 566, className: 'pk-colorpicker' });
   dlg.setBody(body);
   dlg.setButtons([
-    { label: 'Cancel', value: null, subtle: true },
-    { label: 'OK', primary: true, onClick: (d) => { d.close({ ...cur }); return false; } },
+    { label: translateUI('Cancel'), value: null, subtle: true },
+    { label: translateUI('OK'), primary: true, onClick: (d) => { d.close({ ...cur }); return false; } },
   ]);
 
   const promise = dlg.open().then((result) => {
@@ -361,7 +362,7 @@ export function showColorPicker({ color = '#000000', title = 'Color Picker', onC
 export function colorSwatchButton(getColor, setColor, opts = {}) {
   const btn = el(`button.pk-color-btn.pk-checker${opts.className ? `.${opts.className}` : ''}`, {
     type: 'button',
-    title: opts.title || 'Click to choose a colour',
+    title: opts.title || translateUI('Click to choose a colour'),
     style: opts.size ? { width: `${opts.size}px`, height: `${opts.size}px` } : null,
   });
   const fill = el('span.pk-color-btn-fill');

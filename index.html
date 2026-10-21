@@ -1,11 +1,24 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <title>Pikado — Image Studio</title>
-    <meta name="description" content="Pikado — a browser-based raster and vector image studio." />
+    <title>Pikado — 图像工作室</title>
+    <meta name="description" content="Pikado — 在浏览器中运行的栅格与矢量图像工作室。" />
     <meta name="theme-color" content="#0f0f13" />
+    <script>
+      // The host's immutable URL snapshot is applied before any style can paint.
+      (() => {
+        const params = new URLSearchParams(location.search);
+        const theme = params.get('embed') === '1' ? params.get('theme') : 'dark';
+        const resolved = theme === 'light' ? 'light' : 'dark';
+        const background = resolved === 'light' ? '#f3f3f6' : '#0f0f13';
+        document.documentElement.dataset.theme = resolved;
+        document.documentElement.style.colorScheme = resolved;
+        document.documentElement.style.backgroundColor = background;
+        document.querySelector('meta[name="theme-color"]').content = background;
+      })();
+    </script>
     <link rel="manifest" href="./manifest.webmanifest" />
     <!-- iOS ignores the manifest's icons array, so it needs this to get a
          home-screen icon. -->
@@ -81,6 +94,6 @@
         }, 4000);
       });
     </script>
-    <noscript>Pikado needs JavaScript enabled.</noscript>
+    <noscript>使用 Pikado 需要启用 JavaScript。</noscript>
   </body>
 </html>

@@ -1,10 +1,11 @@
 import { app } from '../core/app.js';
+import { t } from '../i18n.js';
 import { createCanvas, uid } from '../core/util.js';
 import { toCss, toHex } from '../core/color.js';
 import { BLEND_MODES, isNativeBlend, gcoFor, blendCPU } from '../core/blend.js';
 import { morph } from '../core/selection.js';
 import { compositeDocument, setLayerPreview } from '../render/compositor.js';
-import { getPatterns as builtinPatterns } from '../paint/patterns.js';
+import { getPatterns as builtinPatterns, getPattern as builtinPattern } from '../paint/patterns.js';
 import { Layer, LayerType } from '../core/layer.js';
 import { paramDialog, promptDialog } from '../ui/dialog.js';
 
@@ -27,9 +28,9 @@ const FILL_CONTENTS = [
   { value: 'black', label: 'Black' },
   { value: 'gray50', label: '50% Gray' },
   { value: 'white', label: 'White' },
-];
+].map((option) => ({ ...option, label: t(option.label) }));
 
-const BLEND_OPTIONS = BLEND_MODES.map((m) => ({ value: m.id, label: m.name }));
+const BLEND_OPTIONS = BLEND_MODES.map((m) => ({ value: m.id, label: t(m.name) }));
 
 /* ------------------------------------------------------------------ */
 /* Pattern library                                                     */
@@ -72,7 +73,7 @@ export async function definePattern(doc) {
   const entry = { id: uid('pat'), name: name.trim() || fallback, canvas: tile };
   customPatterns().unshift(entry);
   app.emit('patterns-change', entry);
-  app.toast(`Defined pattern "${entry.name}" (${b.width} × ${b.height})`, 'ok');
+  app.toast(t('Defined pattern "{name}" ({width} × {height})', { name: entry.name, width: b.width, height: b.height }), 'ok');
   return entry;
 }
 
@@ -94,7 +95,7 @@ function canEdit(doc, layer) {
     return false;
   }
   if (layer.locked.all || layer.locked.pixels) {
-    app.toast(`Layer "${layer.name}" is locked.`);
+    app.toast(t('Layer "{name}" is locked.', { name: layer.name }));
     return false;
   }
   if (!targetSurface(doc, layer)) {
@@ -318,7 +319,7 @@ export async function showFillDialog(doc) {
       { key: 'color', label: 'Color', type: 'color', when: (s) => s.use === 'color' },
       {
         key: 'pattern', label: 'Pattern', type: 'select',
-        options: patterns.length ? patterns.map((p) => ({ value: p.id, label: p.name })) : [{ value: '', label: 'None defined' }],
+        options: patterns.length ? patterns.map((p) => ({ value: p.id, label: builtinPattern(p.id)?.name === p.name ? t(p.name) : p.name })) : [{ value: '', label: t('None defined') }],
         when: (s) => s.use === 'pattern',
       },
       { key: 'patternScale', label: 'Pattern Scale', type: 'slider', min: 0.1, max: 4, step: 0.1, when: (s) => s.use === 'pattern' },
@@ -440,7 +441,7 @@ export async function showStrokeDialog(doc) {
       { key: 'color', label: 'Color', type: 'color' },
       {
         key: 'location', label: 'Location', type: 'radio',
-        options: [{ value: 'inside', label: 'Inside' }, { value: 'center', label: 'Center' }, { value: 'outside', label: 'Outside' }],
+        options: [{ value: 'inside', label: t('Inside') }, { value: 'center', label: t('Center') }, { value: 'outside', label: t('Outside') }],
       },
       { type: 'separator' },
       { key: 'blendMode', label: 'Blending Mode', type: 'select', options: BLEND_OPTIONS },
@@ -783,7 +784,7 @@ export async function showContentAwareFillDialog(doc) {
       { key: 'sampleAllLayers', label: 'Sample All Layers', type: 'checkbox' },
       {
         key: 'output', label: 'Output To', type: 'select',
-        options: [{ value: 'current', label: 'Current Layer' }, { value: 'new-layer', label: 'New Layer' }],
+        options: [{ value: 'current', label: t('Current Layer') }, { value: 'new-layer', label: t('New Layer') }],
       },
       { type: 'label', label: 'The selected pixels are re-synthesised from the surrounding image.' },
     ],

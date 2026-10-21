@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { Tool, registerTool } from './base.js';
 import { app } from '../core/app.js';
 import { PaintStroke, EffectStroke, brushOptionDescriptors, brushFromOptions } from '../paint/brush-engine.js';
@@ -13,9 +14,9 @@ import { cmd, sep } from '../ui/canvas-menu.js';
  */
 
 const LIMIT_OPTIONS = [
-  { value: 'discontiguous', label: 'Discontiguous' },
-  { value: 'contiguous', label: 'Contiguous' },
-  { value: 'find-edges', label: 'Find Edges' },
+  { value: 'discontiguous', label: t('Discontiguous') },
+  { value: 'contiguous', label: t('Contiguous') },
+  { value: 'find-edges', label: t('Find Edges') },
 ];
 
 /** Block eraser is a fixed 16 *screen* pixel square, like Photoshop's. */
@@ -37,9 +38,9 @@ class EraserTool extends BrushToolBase {
       options: [
         { key: 'mode', label: 'Mode', type: 'select', default: 'brush',
           options: [
-            { value: 'brush', label: 'Brush' },
-            { value: 'pencil', label: 'Pencil' },
-            { value: 'block', label: 'Block' },
+            { value: 'brush', label: t('Brush') },
+            { value: 'pencil', label: t('Pencil') },
+            { value: 'block', label: t('Block') },
           ] },
         ...tweakDefaults(base, { size: 40, hardness: 100 }),
         { key: 'eraseToHistory', label: 'Erase to History', type: 'checkbox', default: false },
@@ -147,9 +148,9 @@ class BackgroundEraserTool extends BrushToolBase {
         ...tweakDefaults(brushOptionDescriptors({ opacity: false, airbrush: false }), { size: 60, hardness: 100 }),
         { key: 'sampling', label: 'Sampling', type: 'select', default: 'continuous',
           options: [
-            { value: 'continuous', label: 'Continuous' },
-            { value: 'once', label: 'Once' },
-            { value: 'background', label: 'Background Swatch' },
+            { value: 'continuous', label: t('Continuous') },
+            { value: 'once', label: t('Once') },
+            { value: 'background', label: t('Background Swatch') },
           ] },
         { key: 'limits', label: 'Limits', type: 'select', options: LIMIT_OPTIONS, default: 'contiguous' },
         { key: 'tolerance', label: 'Tolerance', type: 'slider', min: 1, max: 100, step: 1, default: 30, unit: '%' },

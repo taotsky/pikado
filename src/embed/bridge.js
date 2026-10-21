@@ -5,6 +5,7 @@ import { configureStore, verifyStore, closeStore } from '../io/store.js';
 import { flushAll, stopSession, sessionEvents } from '../io/session.js';
 import { buildCommit, partitionName } from './mode.js';
 import { getTargets, insertImages } from './insert.js';
+import { applyTheme } from '../theme.js';
 
 const namespace = 'vbd:pikado';
 const version = 1;
@@ -40,6 +41,7 @@ export function startEmbedded(boot) {
   let ready = false;
   let closing = false;
   let disposed = false;
+  let themeNotified = false;
   let releaseLock;
   let offSave;
   let queue = Promise.resolve();
@@ -56,6 +58,7 @@ export function startEmbedded(boot) {
 
   async function initialize(m) {
     const { userId, projectId, expectedCommit } = m.payload || {};
+    if (!themeNotified) applyTheme(m.payload?.theme);
     const name = partitionName(userId, projectId);
     if (expectedCommit !== buildCommit) throw Object.assign(new Error('编辑器版本不匹配，请刷新页面'), { code: 'VERSION_MISMATCH' });
     releaseLock = await acquireLock(name);
@@ -107,6 +110,10 @@ export function startEmbedded(boot) {
   function receive(event) {
     if (!validEnvelope(event, sessionId) || disposed) return;
     const m = event.data;
+    if (m.type === 'set-theme') {
+      if (applyTheme(m.payload?.theme)) themeNotified = true;
+      return;
+    }
     if (m.type === 'init') {
       if (initialized) return;
       initialized = true;

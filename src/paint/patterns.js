@@ -1,4 +1,5 @@
 import { createCanvas, clamp, clamp255 } from '../core/util.js';
+import { t } from '../i18n.js';
 
 /**
  * Built-in pattern library.
@@ -499,7 +500,7 @@ export function getPattern(id) {
 
 /** `[{value,label}]` ready to drop into a `select` ParamDescriptor. */
 export function patternOptions() {
-  return DEFS.map((d) => ({ value: d.id, label: d.name }));
+  return DEFS.map((d) => ({ value: d.id, label: t(d.name) }));
 }
 
 /**

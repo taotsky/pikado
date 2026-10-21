@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 /**
  * Filter > Sharpen.
  *
@@ -138,9 +139,9 @@ registerFilter({
     { key: 'radius', label: 'Radius', type: 'slider', min: 0.1, max: 64, step: 0.1, default: 1.5, unit: 'px' },
     { key: 'reduceNoise', label: 'Reduce Noise', type: 'slider', min: 0, max: 100, step: 1, default: 20, unit: '%' },
     { key: 'remove', label: 'Remove', type: 'select', default: 'gaussian', options: [
-      { value: 'gaussian', label: 'Gaussian Blur' },
-      { value: 'lens', label: 'Lens Blur' },
-      { value: 'motion', label: 'Motion Blur' },
+      { value: 'gaussian', label: t('Gaussian Blur') },
+      { value: 'lens', label: t('Lens Blur') },
+      { value: 'motion', label: t('Motion Blur') },
     ] },
     { key: 'angle', label: 'Angle', type: 'angle', min: -360, max: 360, step: 1, default: 0,
       when: (s) => s.remove === 'motion' },
