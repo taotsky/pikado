@@ -28,6 +28,13 @@ TypeScript — the source is plain ES modules that a browser could load directly
 The one runtime dependency is [libheif-js](https://github.com/catdad-experiments/libheif-js),
 the HEIC decoder, and nobody downloads it until they open a HEIC.
 
+For the VBD login-protected deployment, build with `npm run build -- --base=/tools/pikado/ --mode=vbd`.
+This mode disables offline installation and emits a network-only `sw.js` that removes
+only Pikado directory cache entries, then unregisters itself. It does not delete
+IndexedDB projects. `pikado-version.json` records `access: "protected"`; the default
+standalone build keeps offline support. Run `node --test scripts/access-worker.test.js`
+to check the cache migration boundary. The VBD host and Nginx provide the login gate.
+
 Or with Docker, which builds the bundle and serves it from nginx:
 
 ```bash

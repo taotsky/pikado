@@ -82,7 +82,7 @@ function registerWorker() {
   // would otherwise haunt development.
   if (!import.meta.env.PROD) {
     navigator.serviceWorker.getRegistrations()
-      .then((regs) => regs.forEach((reg) => reg.unregister()))
+      .then((regs) => regs.filter((reg) => reg.scope === new URL('./', document.baseURI).href && [reg.active, reg.waiting, reg.installing].some((worker) => worker?.scriptURL === new URL('sw.js', document.baseURI).href)).forEach((reg) => reg.unregister()))
       .catch(() => { /* nothing registered, or workers blocked — either is fine */ });
     return;
   }
