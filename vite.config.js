@@ -2,19 +2,14 @@ import { defineConfig } from 'vite';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-export default defineConfig(({ command, mode }) => {
-  const protectedDeployment = mode === 'vbd';
+export default defineConfig(({ command }) => {
   const commit = command === 'build' ? execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', cwd: new URL('.', import.meta.url) }).trim() : 'development';
   return {
-  define: { __PIKADO_COMMIT__: JSON.stringify(commit), __PIKADO_PROTECTED__: JSON.stringify(protectedDeployment) },
+  define: { __PIKADO_COMMIT__: JSON.stringify(commit) },
   plugins: [{
     name: 'vbd-build-record',
-    transformIndexHtml(html) {
-      return protectedDeployment ? html.replace('<head>', '<head>\n    <meta name="pikado-access" content="protected" />') : html;
-    },
     generateBundle() {
-      this.emitFile({ type: 'asset', fileName: 'pikado-version.json', source: JSON.stringify({ repository: 'https://github.com/taotsky/pikado', commit, protocolVersion: 1, access: protectedDeployment ? 'protected' : 'public' }) });
-      if (protectedDeployment) this.emitFile({ type: 'asset', fileName: 'sw.js', source: readFileSync(new URL('./scripts/access-worker.js', import.meta.url), 'utf8') });
+      this.emitFile({ type: 'asset', fileName: 'pikado-version.json', source: JSON.stringify({ repository: 'https://github.com/taotsky/pikado', commit, protocolVersion: 1 }) });
       this.emitFile({ type: 'asset', fileName: 'LICENSE', source: readFileSync(new URL('./LICENSE', import.meta.url), 'utf8') });
     },
   }],

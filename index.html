@@ -76,7 +76,6 @@
        * does not touch, so nothing below can lose work.
        */
       window.addEventListener('load', function () {
-        if (document.querySelector('meta[name="pikado-access"][content="protected"]')) return;
         if (new URLSearchParams(location.search).get('embed') === '1') return;
         setTimeout(function () {
           if (window.pikado || sessionStorage.getItem('pk-healed')) return;
@@ -86,22 +85,10 @@
           console.warn('[pikado] the app did not start; clearing a stale service worker and reloading');
           Promise.all([
             navigator.serviceWorker.getRegistrations().then(function (rs) {
-              const scope = new URL('./', document.baseURI).href;
-              const worker = new URL('sw.js', document.baseURI).href;
-              return Promise.all(rs.filter(function (r) {
-                return r.scope === scope && [r.active, r.waiting, r.installing].some(function (w) { return w && w.scriptURL === worker; });
-              }).map(function (r) { return r.unregister(); }));
+              return Promise.all(rs.map(function (r) { return r.unregister(); }));
             }),
             typeof caches !== 'undefined'
-              ? caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.startsWith('pikado-'); }).map(async function (k) {
-                const cache = await caches.open(k);
-                const root = new URL('./', document.baseURI);
-                await Promise.all((await cache.keys()).filter(function (req) {
-                  const url = new URL(req.url);
-                  return url.origin === root.origin && url.pathname.startsWith(root.pathname);
-                }).map(function (req) { return cache.delete(req); }));
-                if (!(await cache.keys()).length) await caches.delete(k);
-              })); })
+              ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); })
               : null,
           ]).catch(function () { /* reload regardless */ }).then(function () { location.reload(); });
         }, 4000);

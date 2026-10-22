@@ -140,7 +140,7 @@ async function boot() {
   // automatically any more: with no session to restore the welcome screen is
   // what you should land on, not a blank Untitled-1 you did not ask for.
   installSession();
-  if (!embedded && !__PIKADO_PROTECTED__) installOffline();
+  if (!embedded) installOffline();
   installFonts();
   if (embedded) await restoreSession({ strict: true });
   else restoreSession().catch((err) => console.warn('[boot] session restore failed', err));
